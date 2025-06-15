@@ -13,6 +13,50 @@ local GameConfig = {
         LANDMARK_COUNT = 20,
         LANDMARK_SCROLL_CHANCE = 0.25
     },
+
+    BIOME_IDS = {
+        RUSTED_OASIS = 1, -- Plains
+        VEILED_JUNGLE = 2,
+        STORMSPIRE_PEAKS = 3, -- Mountains
+        DESERT = 4,
+        TUNDRA = 5
+        -- Add new biome IDs here as they are created
+    },
+
+    WORLD_REGIONS = {
+        -- Tier 1: Starting Region
+        {
+            id = 1, name = "The Verdant Belt", difficultyTier = 1, isSafePassageTarget = true,
+            biomePalette = {
+                { biome_id = 1, minNoise = 0, maxNoise = 0.4 }, -- Rusted Oasis (Plains) - Reduced range
+                { biome_id = 2, minNoise = 0.4, maxNoise = 1.0 }  -- Veiled Jungle - Increased range
+            }
+        },
+        -- Tier 2: Intermediate Region (Hazardous)
+        {
+            id = 2, name = "The Cinder Wastes", difficultyTier = 2, isSafePassageTarget = false,
+            biomePalette = {
+                { biome_id = 4, minNoise = 0, maxNoise = 0.5 }, -- Desert - Reduced range
+                { biome_id = 3, minNoise = 0.5, maxNoise = 1.0 }  -- Stormspire Peaks (Mountains) - Increased range
+            }
+        },
+        -- Tier 1: Another Safe Hub
+        {
+            id = 3, name = "The Sunken Oasis", difficultyTier = 1, isSafePassageTarget = true,
+            biomePalette = {
+                { biome_id = 1, minNoise = 0, maxNoise = 1.0 } -- Mostly Rusted Oasis (Plains) - Stays the same
+            }
+        },
+        -- Tier 3: Advanced Region (Hazardous)
+        {
+            id = 4, name = "The Frostfell", difficultyTier = 3, isSafePassageTarget = false,
+            biomePalette = {
+                { biome_id = 5, minNoise = 0, maxNoise = 0.4 }, -- Tundra - Reduced range
+                { biome_id = 3, minNoise = 0.4, maxNoise = 1.0 }  -- Stormspire Peaks (Mountains) - Increased range
+            }
+        }
+        -- Add more regions as needed
+    },
     
     -- Player settings
     PLAYER = {
@@ -51,12 +95,21 @@ local GameConfig = {
     DEBUG = {
         ADD_FRAGMENTS_KEY = "f1", -- Key to press to add relic fragments
         FRAGMENT_ADD_AMOUNT = 1,  -- Number of each fragment type to add
-        RECONSTRUCT_RELIC_KEY = "f2" -- Key to mark the next available relic as reconstructed
+        RECONSTRUCT_RELIC_KEY = "f2", -- Key to mark the next available relic as reconstructed
+        REVEAL_MAP_KEY = "f3" -- Key to toggle full map reveal
     },
 
     -- Gameplay actions
     ACTIONS = {
         RECONSTRUCT_ATTEMPT_KEY = "r" -- Key to attempt relic reconstruction
+    },
+
+    -- Relic Effects Configuration
+    RELIC_EFFECTS = {
+        CHRONO_PRISM_HAZARD_REDUCTION_PERCENT = 0.25, -- Reduces hazard stamina loss by 25%
+        AETHER_LENS_EXPLORE_BONUS = 1,
+        VOID_ANCHOR_HAZARD_IGNORE_CHANCE = 0.10, -- 10% chance
+        LIFE_SPRING_STAMINA_BOOST = 20
     }
 }
 

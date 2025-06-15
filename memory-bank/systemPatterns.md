@@ -33,6 +33,9 @@ graph TD
         C_attempt_relic[attemptRelicReconstruction]
         C_debug_frags[addDebugRelicFragments]
         C_debug_relic[debugReconstructNextRelic]
+        C_is_relic[isRelicReconstructed]
+        C_explore[exploreAroundPlayer]
+        C_hazard[checkHazard]
     end
     C --> C_init
     C --> C_save
@@ -42,6 +45,16 @@ graph TD
     C --> C_attempt_relic
     C --> C_debug_frags
     C --> C_debug_relic
+    C --> C_is_relic
+    C --> C_explore
+    C --> C_hazard
+    C_init --> C_is_relic    # For Life Spring
+    C_death --> C_is_relic   # For Life Spring
+    C_move --> C_explore     # movePlayer calls exploreAroundPlayer
+    C_move --> C_hazard      # movePlayer calls checkHazard
+    C_explore --> C_is_relic # exploreAroundPlayer uses isRelicReconstructed for Aether Lens
+    C_hazard --> C_is_relic  # checkHazard uses isRelicReconstructed for Void Anchor AND Chrono Prism
+
 
     subgraph InputHandler_Calls
         direction LR
@@ -87,6 +100,11 @@ graph TD
     F --> I
     G --> I
     C --> H[ContractSystem]
+    I --> C_init
+    I --> C_death
+    I --> C_move  # GameConfig still used for general player/world settings in move context
+    I --> C_explore
+    I --> C_hazard
     
     subgraph Configuration
         I[GameConfig]
@@ -255,13 +273,15 @@ flowchart TD
     D --> E[GameManager.exploreAroundPlayer]
     D --> F[AbilitySystem.applyMovementEffects]
     D --> G[GameManager.checkHazard]
-    D --> H[GameManager.checkLandmark]
-    G --> I{Stamina <= 0?}
-    I -->|Yes| J[GameManager.onPlayerDeath]
-    I -->|No| K[Continue]
-    H --> L{Landmark?}
-    L -->|Yes| M[Handle landmark discovery]
-    L -->|No| K
+    G --> H{Stamina loss from hazard?}
+    H --> I[GameManager.checkLandmark]
+    I --> J{Stamina <= 0?}
+    J -->|Yes| K[GameManager.onPlayerDeath]
+    J -->|No| L[Continue]
+    I --> M{Landmark?}
+    M -->|Yes| N[Handle landmark discovery]
+    M -->|No| L
+    Note: Default stamina cost per move removed. Stamina loss only from hazards.
 ```
 
 4. **Contract System Flow**
@@ -293,14 +313,15 @@ flowchart TD
 ```mermaid
 sequenceDiagram
     InputHandler->>GameManager: love.keypressed("r") (attemptRelicReconstruction)
+    InputHandler->>GameManager: love.keypressed("r") (attemptRelicReconstruction)
     GameManager->>GameManager: Iterate meta.relics
     loop For each non-reconstructed relic
         GameManager->>GameManager: Check player.inventory.relic_fragments vs relic.fragments
         alt Enough Fragments
             GameManager->>GameManager: Deduct fragments from player.inventory
             GameManager->>GameManager: Set relic.reconstructed = true
-            GameManager->>GameManager: addNotification("Relic X reconstructed!")
-            Note over GameManager: (Future: Apply relic effects/abilities)
+            GameManager->>GameManager: addNotification("Relic X reconstructed! Its power flows through you.")
+            Note over GameManager: Passive effects are now active.
             GameManager-->>InputHandler: return true (stop iteration)
         else Not Enough Fragments
             GameManager->>GameManager: Continue to next relic

@@ -42,10 +42,29 @@ GameManager.GameState = {
     notifications = {}
 }
 
+-- Helper function to check if a specific relic is reconstructed
+function GameManager.isRelicReconstructed(relicName)
+    if GameManager.GameState.meta and GameManager.GameState.meta.relics then
+        for _, relic in ipairs(GameManager.GameState.meta.relics) do
+            if relic.name == relicName and relic.reconstructed then
+                return true
+            end
+        end
+    end
+    return false
+end
+
 -- Initialize the game
 function GameManager.initialize()
     -- Load saved game if exists
     GameManager.loadGame()
+
+    -- Apply Life Spring stamina boost if relic is reconstructed
+    local baseStamina = GameConfig.PLAYER.STARTING_STAMINA
+    if GameManager.isRelicReconstructed("Life Spring") then
+        baseStamina = baseStamina + GameConfig.RELIC_EFFECTS.LIFE_SPRING_STAMINA_BOOST
+    end
+    GameManager.GameState.player.stamina = baseStamina -- Set initial stamina
     
     -- Initialize game world
     GameManager.GameState.world = WorldGeneration.generateWorld(
@@ -165,10 +184,16 @@ function GameManager.onPlayerDeath()
     GameManager.GameState.world = WorldGeneration.generateWorld(
         GameConfig.WORLD.WIDTH, GameConfig.WORLD.HEIGHT
     )
+
+    local startingStamina = GameConfig.PLAYER.STARTING_STAMINA
+    if GameManager.isRelicReconstructed("Life Spring") then
+        startingStamina = startingStamina + GameConfig.RELIC_EFFECTS.LIFE_SPRING_STAMINA_BOOST
+    end
+
     GameManager.GameState.player = {
         x = GameConfig.PLAYER.STARTING_X,
         y = GameConfig.PLAYER.STARTING_Y,
-        stamina = GameConfig.PLAYER.STARTING_STAMINA,
+        stamina = startingStamina, -- Apply potential Life Spring boost
         inventory = {
             -- Restore relic fragments from meta
             relic_fragments = GameManager.GameState.meta.relic_fragments and GameManager.deepCopy(GameManager.GameState.meta.relic_fragments) or {}
@@ -296,6 +321,9 @@ function GameManager.movePlayer(dx, dy)
     if newX >= 1 and newX <= world.width and newY >= 1 and newY <= world.height then
         player.x = newX
         player.y = newY
+
+        -- NOTE: Default movement stamina cost has been removed.
+        -- Chrono Prism's effect has been repurposed to reduce hazard stamina loss in checkHazard().
         
         -- Explore tiles around player
         GameManager.exploreAroundPlayer()
@@ -303,11 +331,16 @@ function GameManager.movePlayer(dx, dy)
         -- Apply movement-based ability effects
         AbilitySystem.applyMovementEffects(player, world)
         
-        -- Check for hazards
+        -- Check for hazards (stamina already deducted for move, this is for tile-specific hazards)
         GameManager.checkHazard(player.x, player.y)
         
         -- Check if player is on a landmark
         GameManager.checkLandmark()
+
+        -- Check for player death after all stamina deductions
+        if player.stamina <= 0 then
+            GameManager.onPlayerDeath()
+        end
     end
 end
 
@@ -316,9 +349,14 @@ function GameManager.exploreAroundPlayer()
     local player = GameManager.GameState.player
     local world = GameManager.GameState.world
     
+    local currentExploreRadius = GameConfig.WORLD.EXPLORE_RADIUS
+    if GameManager.isRelicReconstructed("Aether Lens") then
+        currentExploreRadius = currentExploreRadius + GameConfig.RELIC_EFFECTS.AETHER_LENS_EXPLORE_BONUS
+    end
+    
     -- Explore in defined radius with boundary checks
-    for dx = -GameConfig.WORLD.EXPLORE_RADIUS, GameConfig.WORLD.EXPLORE_RADIUS do
-        for dy = -GameConfig.WORLD.EXPLORE_RADIUS, GameConfig.WORLD.EXPLORE_RADIUS do
+    for dx = -currentExploreRadius, currentExploreRadius do
+        for dy = -currentExploreRadius, currentExploreRadius do
             local x = player.x + dx
             local y = player.y + dy
             
@@ -345,23 +383,38 @@ function GameManager.checkHazard(x, y)
     end
     
     if biome_id == 2 and math.random() < GameConfig.HAZARDS.JUNGLE_CHANCE then
-        -- Apply biome mastery reduction if available
-        local reduction = AbilitySystem.ABILITY_EFFECTS.biome_mastery.effect(player, tile) or 1
-        player.stamina = player.stamina - (GameConfig.HAZARDS.JUNGLE_STAMINA_LOSS * reduction)
-    elseif biome_id == 3 and math.random() < GameConfig.HAZARDS.PEAK_CHANCE then
-        if math.random() > GameConfig.HAZARDS.PEAK_REWARD_CHANCE then 
-            player.stamina = player.stamina - GameConfig.HAZARDS.PEAK_STAMINA_LOSS
+        if not (GameManager.isRelicReconstructed("Void Anchor") and math.random() < GameConfig.RELIC_EFFECTS.VOID_ANCHOR_HAZARD_IGNORE_CHANCE) then
+            local staminaLoss = GameConfig.HAZARDS.JUNGLE_STAMINA_LOSS
+            -- Apply Chrono Prism reduction if active
+            if GameManager.isRelicReconstructed("Chrono Prism") then
+                staminaLoss = staminaLoss * (1 - GameConfig.RELIC_EFFECTS.CHRONO_PRISM_HAZARD_REDUCTION_PERCENT)
+            end
+            -- Apply biome mastery reduction if available (stacks with Chrono Prism)
+            local biomeMasteryReduction = AbilitySystem.ABILITY_EFFECTS.biome_mastery.effect(player, tile) or 1
+            player.stamina = player.stamina - math.floor(staminaLoss * biomeMasteryReduction) -- Ensure whole number
         else
-            -- Add relic fragment to inventory
-            player.inventory = player.inventory or {}
-            player.inventory.relic_fragment = (player.inventory.relic_fragment or 0) + 1
+            GameManager.addNotification("Void Anchor protects you from the hazard!")
+        end
+    elseif biome_id == 3 and math.random() < GameConfig.HAZARDS.PEAK_CHANCE then
+        if not (GameManager.isRelicReconstructed("Void Anchor") and math.random() < GameConfig.RELIC_EFFECTS.VOID_ANCHOR_HAZARD_IGNORE_CHANCE) then
+            if math.random() > GameConfig.HAZARDS.PEAK_REWARD_CHANCE then
+                local staminaLoss = GameConfig.HAZARDS.PEAK_STAMINA_LOSS
+                -- Apply Chrono Prism reduction if active
+                if GameManager.isRelicReconstructed("Chrono Prism") then
+                    staminaLoss = staminaLoss * (1 - GameConfig.RELIC_EFFECTS.CHRONO_PRISM_HAZARD_REDUCTION_PERCENT)
+                end
+                player.stamina = player.stamina - math.floor(staminaLoss) -- Ensure whole number
+            else
+                -- Add relic fragment to inventory
+                player.inventory = player.inventory or {}
+                player.inventory.relic_fragment = (player.inventory.relic_fragment or 0) + 1
+            end
+        else
+            GameManager.addNotification("Void Anchor protects you from the hazard!")
         end
     end
     
-    -- Check for player death
-    if player.stamina <= 0 then
-        GameManager.onPlayerDeath()
-    end
+    -- Player death check is now handled in movePlayer after all stamina changes for the turn.
 end
 
 -- Check if player is on a landmark
@@ -480,8 +533,8 @@ function GameManager.attemptRelicReconstruction()
                 end
                 
                 relic.reconstructed = true
-                GameManager.addNotification(string.format("Relic '%s' reconstructed!", relic.name))
-                -- TODO: Add any specific effects or ability unlocks for this relic
+                GameManager.addNotification(string.format("Relic '%s' reconstructed! Its power flows through you.", relic.name))
+                -- Relic effects are applied passively based on their reconstructed state.
                 return true -- Successfully reconstructed one relic
             end
         end
@@ -493,6 +546,43 @@ function GameManager.attemptRelicReconstruction()
         GameManager.addNotification("Not enough fragments to reconstruct any available relic.")
     end
     return false
+end
+
+-- Debug function to toggle full map reveal
+function GameManager.debugToggleRevealMap()
+    if not GameManager.GameState.world or not GameManager.GameState.world.tiles then
+        GameManager.addNotification("Debug: World not generated yet.")
+        return
+    end
+
+    -- Determine if we are revealing or hiding (though hiding doesn't un-explore)
+    local currentlyRevealed = true
+    for x = 1, GameManager.GameState.world.width do
+        for y = 1, GameManager.GameState.world.height do
+            if not GameManager.GameState.world.tiles[x][y].explored then
+                currentlyRevealed = false
+                break
+            end
+        end
+        if not currentlyRevealed then break end
+    end
+
+    local newExploredState = not currentlyRevealed
+
+    for x = 1, GameManager.GameState.world.width do
+        for y = 1, GameManager.GameState.world.height do
+            GameManager.GameState.world.tiles[x][y].explored = newExploredState
+            if GameManager.GameState.world.tiles[x][y].landmark then
+                 GameManager.GameState.world.tiles[x][y].landmark.discovered = newExploredState
+            end
+        end
+    end
+
+    if newExploredState then
+        GameManager.addNotification("Debug: Map revealed.")
+    else
+        GameManager.addNotification("Debug: Map exploration reset (visual only).") -- Tiles remain explored=true
+    end
 end
 
 -- Update camera position based on player position

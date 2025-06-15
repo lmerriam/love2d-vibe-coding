@@ -28,15 +28,26 @@
     - Player ability to attempt relic reconstruction by spending fragments.
     - Debug tools for adding fragments and auto-reconstructing relics.
     - Robust save/load and death persistence for relic fragments and status.
+    - **Implemented Passive Relic Effects**:
+        - Chrono Prism: Repurposed to reduce hazard stamina loss by 25%.
+        - Aether Lens: Increases exploration radius.
+        - Void Anchor: Chance to ignore hazard stamina loss.
+        - Life Spring: Increases starting stamina.
+        - Effects are configured in `game_config.lua` and integrated into `game_manager.lua`.
 
 ## What's Left to Build
 
-1. **Relic System Enhancements**
-   - Define and implement actual in-game effects or abilities granted by each reconstructed relic.
-   - Thoroughly test all aspects of the relic system (collection, UI, reconstruction, persistence, effects).
+1.  **Gameplay Testing & Balancing**:
+    *   Thoroughly test the new stamina system (no default loss, hazard-only loss).
+    *   Verify the new biome distribution (Desert most common, Mountains least).
+    *   Assess overall game difficulty and pacing with these changes.
+2.  **Relic System Review & Refinement**:
+    *   **Chrono Prism**: Thoroughly test its new effect (25% hazard stamina reduction) and ensure it stacks correctly with other relevant effects (e.g., Biome Mastery).
+    *   Test other active relic effects (Aether Lens, Void Anchor, Life Spring) with the new stamina system.
+    *   Consider if any UI indicators are needed for active relic buffs.
 
-2. **UI Improvements (General)**
-   - Better visual indicators for abilities
+3. **UI Improvements (General)**
+   - Better visual indicators for abilities (non-relic).
    - Enhanced contract display
    - More informative player status screen
 
@@ -58,19 +69,69 @@
    - Cache procedural generation results
    - Reduce memory usage for large worlds
 
+## Future Gameplay Enhancements: World Navigation
+
+This section outlines brainstormed ideas to make world navigation more interesting and structured.
+
+**I. Restructuring World Layout & Biome Distribution**
+    *   **Defined Regions/Continents:** Generate larger, distinct landmasses or regions with thematic biome collections.
+    *   **Natural Chokepoints & Pathways:** Design world generation to create natural chokepoints (mountain passes, narrow isthmuses) guiding player movement.
+    *   **Tiered Biome Progression & "Hub" Zones:** Structure the world so higher-risk/reward biomes are further from the start or soft-gated. Introduce hub biomes or landmarks.
+
+**II. Implementing Navigational Obstacles & Gating Mechanisms**
+    *   **Environmental Barriers:** Introduce initially impassable/costly terrain (e.g., dense thickets, deep rivers, sheer cliffs) requiring tools/abilities.
+    *   **Severe Hazard Zones:** Design sub-regions with extreme stamina drain or effects, requiring specific countermeasures.
+    *   **Ability/Item Gating:** Make areas inaccessible without specific abilities (Glide, Swim, Climb) or consumable items.
+    *   **Knowledge Gating:** Require finding map fragments or clues to reveal safe paths or bypass obstacles.
+    *   **Dynamic World Events (Advanced):** Temporary events altering paths (sandstorms, floods, magical barriers).
+
+**III. Enhancing Landmark Significance for Navigation**
+    *   **Landmarks as Keys/Activators:** Interactive landmarks that trigger world changes (raise bridges, dispel barriers).
+    *   **Landmarks Providing Navigational Tools/Info:** Landmarks granting temporary boons (wider map reveal, pointing to hidden locations).
+    *   **Chains of Landmarks:** Mini-quests involving sequences of landmarks leading to rewards or new areas.
+
+**IV. Leveraging Existing Mechanics for Structured Navigation**
+    *   **Contracts for Guided Progression:** Design contracts requiring navigation through or overcoming new obstacles.
+    *   **Relics Granting Navigational Advantages:** Reconstructed Relics offering powerful navigational abilities (teleportation, hazard immunity, revealing hidden paths).
+    *   **Stamina as a Strategic Resource for Traversal:** Severe hazard zones requiring careful stamina management, planning, or specific items/abilities.
+
 ## Current Status
 
 The refactoring effort has significantly improved the codebase organization and maintainability. The game is now structured in a way that makes it much easier for AI coding agents to comprehend and extend.
 
 **Recent Developments (Post-Refactor):**
-- **Relic Reconstruction System**: A major feature, the Relic Reconstruction UI and its underlying mechanics (fragment collection, spending, status tracking, persistence) have been implemented. This includes:
-    - UI display for relics and fragments.
-    - Player input (`r` key) to attempt reconstruction.
-    - Debug keys (F1 for fragments, F2 for instant reconstruction).
-    - Fixes to ensure correct data handling during save/load and player death, preventing issues like fragment doubling or loss of relic definitions.
-- Key modules like `GameManager`, `Renderer`, `InputHandler`, and `GameConfig` were updated to support this system.
+- **Biome Distribution Tuning:**
+    - **`src/config/game_config.lua`**: Adjusted `minNoise` and `maxNoise` thresholds in `WORLD_REGIONS` biome palettes to promote more varied biome generation.
+- **World Generation Overhaul (Phase 3 - Strategic Corridors Complete):**
+    - **`src/config/game_config.lua`**: Added `isSafePassageTarget` flag to region definitions; configured four regions with two marked as safe targets.
+    - **`src/world/world_generation.lua`**:
+        - Adjusted region noise generation for four regions.
+        - Implemented logic to find centers of safe hub regions.
+        - Added Bresenham's line algorithm to plot paths between the starting hub and another safe hub.
+        - Carves a 3-tile wide corridor of `PATH_BIOME_ID` through intermediate non-safe regions along this path.
+        - Marked corridor tiles to be excluded from random chokepoint generation.
+- **Debug Feature: Reveal Map:**
+    - Added `REVEAL_MAP_KEY = "f3"` to `src/config/game_config.lua`.
+    - Implemented `GameManager.debugToggleRevealMap()` in `src/core/game_manager.lua` to explore all tiles and discover landmarks.
+    - Updated `src/input/input_handler.lua` to trigger this function on "f3" press.
+- **World Generation Overhaul (Phase 2 - Chokepoints Complete):**
+    - Building on Phase 1, `src/world/world_generation.lua` now includes a pass to identify border tiles between regions.
+    - These border tiles have a `CHOKEPOINT_CHANCE` (10%) to be converted into a `PATH_BIOME_ID` (Rusted Oasis), creating simplified pathways.
+- **World Generation Overhaul (Phase 1 - Regions & Palettes Complete):**
+    - Implemented a new system in `src/world/world_generation.lua` that divides the world into distinct regions using a new Perlin noise layer (`region_map`).
+    - Each region is assigned a `difficultyTier`.
+    - Player starting area is now guaranteed to be within a `difficultyTier = 1` region.
+    - Biome assignment within each region is now governed by a `biomePalette` defined in `GameConfig.WORLD_REGIONS` (in `src/config/game_config.lua`), allowing for thematic biome collections per region.
+    - Added `BIOME_IDS` to `src/config/game_config.lua` for clarity.
+- **Previous Major Gameplay Adjustments:**
+    - **Stamina System Overhaul**: Removed default stamina cost per move in `game_manager.lua`. Stamina loss now only occurs from biome-specific hazards.
+    - **World Generation Changes (Biome Prevalence - Superseded by Regions)**: Modified Perlin noise thresholds in `world_generation.lua` to make Desert (ID 4) the most common biome and Mountains (ID 3) the least common. This specific logic is now part of the region palettes.
+- **Relic Reconstruction System & Effects**:
+    - Foundational system for relic UI, fragment tracking, reconstruction logic, debug tools, and data persistence is in place.
+    - Passive effects for relics were implemented. The Chrono Prism's effect has been repurposed to reduce hazard stamina loss by 25%. Other effects (Aether Lens, Void Anchor, Life Spring) remain.
+- Key modules like `GameManager`, `Renderer`, `InputHandler`, `world_generation.lua` and `GameConfig` were updated.
 
-The core functionality remains intact and has been extended with the relic system. The next steps involve thoroughly testing this new system and then defining the actual gameplay benefits of reconstructing relics.
+The world generation system has been significantly restructured with regions, thematic biome palettes, random chokepoints, and now strategic corridors connecting safe hubs. The next steps involve thorough testing of this comprehensive new system and potentially refining corridor/chokepoint generation. Previous gameplay balance concerns around stamina also need re-evaluation in light of the new world structure.
 
 ## Evolution of Project Decisions
 

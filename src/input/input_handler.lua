@@ -37,6 +37,9 @@ function InputHandler.handleKeyPress(key)
     -- Debug: Reconstruct next relic
     elseif key == GameConfig.DEBUG.RECONSTRUCT_RELIC_KEY then
         GameManager.debugReconstructNextRelic()
+    -- Debug: Toggle map reveal
+    elseif key == GameConfig.DEBUG.REVEAL_MAP_KEY then
+        GameManager.debugToggleRevealMap()
     -- Attempt Relic Reconstruction
     elseif key == GameConfig.ACTIONS.RECONSTRUCT_ATTEMPT_KEY then
         GameManager.attemptRelicReconstruction()
