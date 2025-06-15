@@ -52,9 +52,24 @@ function love.load()
         completed = 0
     }
     
+    -- Initialize notifications
+    GameState.notifications = {}
+    
     -- Generate initial contract
     local initialContract = ContractSystem.generateContract()
     table.insert(GameState.contracts.active, initialContract)
+end
+
+-- Format reward text for notifications
+function formatReward(reward)
+    if reward.type == "stamina" then
+        return reward.amount .. " stamina"
+    elseif reward.type == "resource" then
+        return reward.amount .. " relic fragments"
+    elseif reward.type == "ability" then
+        return "Ability: " .. reward.name
+    end
+    return "Reward"
 end
 
 function love.update(dt)
@@ -63,9 +78,45 @@ function love.update(dt)
         if not contract.completed then
             -- Check contract completion
             if ContractSystem.checkCompletion(contract, GameState.player, GameState.world) then
-                ContractSystem.grantReward(contract, GameState.player)
+                -- Grant reward and get reward details
+                local reward = ContractSystem.grantReward(contract, GameState.player)
                 GameState.contracts.completed = GameState.contracts.completed + 1
+                
+                -- Add notification
+                if reward then
+                    local notif = {
+                        text = "Contract completed! Reward: " .. formatReward(reward),
+                        timer = 3,  -- seconds
+                        alpha = 1   -- initial alpha for fade effect
+                    }
+                    table.insert(GameState.notifications, notif)
+                end
+                
+                -- Set removal timer
+                contract.completedTime = 5
             end
+        end
+    end
+    
+    -- Handle contract removal timers
+    for i = #GameState.contracts.active, 1, -1 do
+        local contract = GameState.contracts.active[i]
+        if contract.completed and contract.completedTime then
+            contract.completedTime = contract.completedTime - dt
+            if contract.completedTime <= 0 then
+                table.remove(GameState.contracts.active, i)
+            end
+        end
+    end
+    
+    -- Handle notification timers
+    for i = #GameState.notifications, 1, -1 do
+        local notif = GameState.notifications[i]
+        notif.timer = notif.timer - dt
+        notif.alpha = math.min(1, notif.timer)  -- Fade out effect
+        
+        if notif.timer <= 0 then
+            table.remove(GameState.notifications, i)
         end
     end
 end
@@ -177,9 +228,21 @@ function love.draw()
     -- Render meta resources
     love.graphics.print("Crystals: " .. GameState.meta.banked_resources.crystal, 10, love.graphics.getHeight() - 30)
     
+    -- Render notifications
+    local notificationY = 10
+    for i, notif in ipairs(GameState.notifications) do
+        -- Set color with alpha for fade effect
+        love.graphics.setColor(0, 0, 0, 0.7 * notif.alpha)  -- Semi-transparent background
+        love.graphics.rectangle("fill", 10, notificationY, 400, 30)
+        
+        love.graphics.setColor(1, 1, 0, notif.alpha)  -- Yellow text with alpha
+        love.graphics.print(notif.text, 20, notificationY + 10)
+        
+        notificationY = notificationY + 40
+    end
+    
     -- Render active contracts
     if #GameState.contracts.active > 0 then
-        love.graphics.setColor(1, 1, 1)
         local yOffset = 30
         for i, contract in ipairs(GameState.contracts.active) do
             local contractType = ContractSystem.CONTRACT_TYPES[contract.type]
@@ -198,9 +261,22 @@ function love.draw()
                 description = string.format(description, contract.required, contract.target)
             end
             
+            -- Set color based on completion status
+            if contract.completed then
+                love.graphics.setColor(0, 1, 0)  -- Green for completed
+            else
+                love.graphics.setColor(1, 1, 1)  -- White for active
+            end
+            
             love.graphics.print(description, love.graphics.getWidth() - 250, yOffset)
             love.graphics.print("Progress: " .. contract.progress .. "/" .. contract.required, 
                                 love.graphics.getWidth() - 250, yOffset + 20)
+            
+            -- Add checkmark for completed contracts
+            if contract.completed then
+                love.graphics.print("✓ COMPLETED!", love.graphics.getWidth() - 250, yOffset + 40)
+            end
+            
             yOffset = yOffset + 50
         end
     end

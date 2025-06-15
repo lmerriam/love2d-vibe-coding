@@ -95,17 +95,19 @@ end
 
 -- Grant contract reward
 function ContractSystem.grantReward(contract, player)
-    if not contract.completed then return end
-    
-    local reward = contract.reward
-    if reward.type == "stamina" then
-        player.stamina = player.stamina + reward.amount
-    elseif reward.type == "resource" then
-        player.inventory[contract.target] = (player.inventory[contract.target] or 0) + reward.amount
-    elseif reward.type == "ability" then
-        player.abilities = player.abilities or {}
-        table.insert(player.abilities, reward.name)
-    end
+  if not contract.completed then return nil end
+  
+  local reward = contract.reward
+  if reward.type == "stamina" then
+      player.stamina = player.stamina + reward.amount
+  elseif reward.type == "resource" then
+      player.inventory[contract.target] = (player.inventory[contract.target] or 0) + reward.amount
+  elseif reward.type == "ability" then
+      player.abilities = player.abilities or {}
+      table.insert(player.abilities, reward.name)
+  end
+  
+  return reward
 end
 
 return ContractSystem
