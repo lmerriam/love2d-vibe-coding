@@ -2,6 +2,7 @@
 -- Handles all user input for Shattered Expanse
 
 local GameManager = require("src.core.game_manager")
+local GameConfig = require("src.config.game_config") -- Add GameConfig require
 
 local InputHandler = {}
 
@@ -29,6 +30,16 @@ function InputHandler.handleKeyPress(key)
     elseif key == "s" and love.keyboard.isDown("lctrl") then
         GameManager.saveGame()
         GameManager.addNotification("Game saved!")
+        
+    -- Debug: Add relic fragments
+    elseif key == GameConfig.DEBUG.ADD_FRAGMENTS_KEY then
+        GameManager.addDebugRelicFragments()
+    -- Debug: Reconstruct next relic
+    elseif key == GameConfig.DEBUG.RECONSTRUCT_RELIC_KEY then
+        GameManager.debugReconstructNextRelic()
+    -- Attempt Relic Reconstruction
+    elseif key == GameConfig.ACTIONS.RECONSTRUCT_ATTEMPT_KEY then
+        GameManager.attemptRelicReconstruction()
     end
 end
 

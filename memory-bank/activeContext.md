@@ -3,30 +3,42 @@
 ---
 
 ### **CURRENT WORK FOCUS**
-- Completed major code refactoring for improved AI maintainability
-- Creating a modular codebase with clear separation of concerns
-- Implementing centralized configuration management
-- Improving documentation for easier development
+- Implemented the Relic Reconstruction UI and core mechanics.
+- Added debug features for testing relic fragment collection and relic reconstruction.
+- Fixed issues related to relic data persistence during save/load and player death.
+- Ensured relic system integrates with existing game state and UI rendering.
 
 ---
 
 ### **RECENT CHANGES**
-- Restructured the entire codebase into a modular architecture:
-  - Created `/src/core/game_manager.lua` for centralized game state management
-  - Created `/src/config/game_config.lua` for consolidated configuration values
-  - Created `/src/input/input_handler.lua` to handle user input separately
-  - Created `/src/rendering/renderer.lua` for all drawing operations
-  - Enhanced `/src/world/world_generation.lua` with better procedural generation
-  - Improved `/src/systems/ability_system.lua` with clearer structure
-  - Enhanced `/src/systems/contract_system.lua` with better organization
-  - Streamlined main.lua to focus only on LÖVE2D callback coordination
-- Added comprehensive development documentation in `/documentation/ai_development_guide.md`
-- Created a proper Perlin noise implementation in `lib/perlin.lua`
+- **Relic Reconstruction System Implementation:**
+    - **`src/rendering/renderer.lua`**: Added `renderRelicReconstructionUI()` to display relic status, required fragments, and player's current fragments. Called this from the main `render()` loop. Used config values for positioning.
+    - **`src/config/game_config.lua`**:
+        - Added `UI.RELIC_UI_OFFSET_X` and `UI.RELIC_UI_OFFSET_Y` for positioning the relic UI.
+        - Added `DEBUG.ADD_FRAGMENTS_KEY` ("f1") and `DEBUG.FRAGMENT_ADD_AMOUNT`.
+        - Added `DEBUG.RECONSTRUCT_RELIC_KEY` ("f2").
+        - Added `ACTIONS.RECONSTRUCT_ATTEMPT_KEY` ("r").
+    - **`src/core/game_manager.lua`**:
+        - Implemented `addDebugRelicFragments()` to add a specified number of all relic fragment types to player inventory. Made robust against missing `meta.relics`.
+        - Implemented `debugReconstructNextRelic()` to mark the next available relic as reconstructed.
+        - Implemented `attemptRelicReconstruction()`:
+            - Checks if player has enough fragments for any non-reconstructed relic.
+            - Deducts fragments from player inventory.
+            - Marks the relic as `reconstructed` in `GameState.meta.relics`.
+            - Provides notifications for success/failure/all done.
+        - Modified `loadGame()` to correctly merge saved `meta` data, preserving default `meta.relics` if not present in save file, fixing an issue where `meta.relics` could become nil.
+        - Modified `onPlayerDeath()` to correctly persist `player.inventory.relic_fragments` to `meta.relic_fragments` by direct assignment (deep copy) instead of additive logic, fixing fragment doubling.
+    - **`src/input/input_handler.lua`**:
+        - Added key press handlers for `ADD_FRAGMENTS_KEY` (F1), `RECONSTRUCT_RELIC_KEY` (F2), and `RECONSTRUCT_ATTEMPT_KEY` ("r") to call their respective functions in `GameManager`.
+- **Previous Refactoring (remains relevant):**
+    - Restructured the entire codebase into a modular architecture.
+    - Added comprehensive development documentation in `/documentation/ai_development_guide.md`.
+    - Created a proper Perlin noise implementation in `lib/perlin.lua`.
 
 ### **PREVIOUS DEVELOPMENT**
-- Implemented save/load system with serpent serialization
-- Added persistent meta-progression saving
-- Created save/load handlers for game state
+- Implemented save/load system with serpent serialization (now enhanced for relics).
+- Added persistent meta-progression saving (now includes relic status and fragments).
+- Created save/load handlers for game state (now enhanced for relics).
 - Updated contract system with scroll discovery
 - Added contract UI display and progress tracking
 - Implemented contract reward distribution
@@ -37,17 +49,19 @@
 - Enhanced death handling to preserve ability progression
 
 ### **NEXT STEPS**
-1. **Test refactored architecture**:
-   - Verify all game functionality works properly
-   - Ensure seamless integration between modules
-   - Check for any regression issues
-
-2. **UI Improvements**:
-   - Implement the Relic Reconstruction UI
-   - Enhance ability system visuals
-   - Improve progression feedback
-
-3. **Content Enhancements**:
+1.  **Thoroughly Test Relic System**:
+    *   Verify fragment collection from various sources (if applicable beyond debug).
+    *   Test Relic Reconstruction UI updates correctly.
+    *   Test reconstruction logic (fragment deduction, status change).
+    *   Test persistence of fragments and reconstructed status across deaths and game sessions (save/load).
+    *   Test all debug keys (F1, F2, r) under various conditions.
+2.  **Define Relic Effects/Rewards**:
+    *   Currently, reconstructing a relic only marks it as complete.
+    *   Decide and implement what benefits or abilities each reconstructed relic provides to the player (e.g., passive buffs, new active abilities). This will likely involve `AbilitySystem`.
+3.  **UI Improvements (General)**:
+    *   Enhance ability system visuals.
+    *   Improve general progression feedback.
+4.  **Content Enhancements**:
    - Add more biome types and environmental effects
    - Expand the contract system with additional quest types
    - Add more landmark varieties and special discoveries

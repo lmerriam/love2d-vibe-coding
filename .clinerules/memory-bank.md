@@ -110,7 +110,7 @@ flowchart TD
 
     Start --> Process
 
-When reviewing and updating the memory bank, it is recommended to use the tools in the Repomix mcp server to optimize my ability to read the codebase.
+When reviewing the codebase it is strongly recommended to use Repomix to create a packed version of the codebase and review that file.
 
 Note: When triggered by **update memory bank**, I MUST review every memory bank file, even if some don't require updates. Focus particularly on activeContext.md and progress.md as they track current state.
 

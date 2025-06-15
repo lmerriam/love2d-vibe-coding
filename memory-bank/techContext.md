@@ -73,8 +73,10 @@ All game constants and configuration settings are centralized in `src/config/gam
 - World dimensions and tile sizes
 - Player starting values
 - Hazard probabilities and effects
-- UI layout parameters
+- UI layout parameters (including Relic UI)
 - Save file settings
+- Debug keys (e.g., for adding fragments, reconstructing relics)
+- Gameplay action keys (e.g., for attempting relic reconstruction)
 
 ### Love2D Callback Structure
 

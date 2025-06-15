@@ -22,11 +22,20 @@
   - Ability system with passive and active abilities
   - Notification system for player feedback
   - Centralized game state management
+  - **Relic System**:
+    - Relic definition and fragment tracking in `GameState`.
+    - UI for displaying relic reconstruction status and fragment requirements.
+    - Player ability to attempt relic reconstruction by spending fragments.
+    - Debug tools for adding fragments and auto-reconstructing relics.
+    - Robust save/load and death persistence for relic fragments and status.
 
 ## What's Left to Build
 
-1. **UI Improvements**
-   - Relic reconstruction interface
+1. **Relic System Enhancements**
+   - Define and implement actual in-game effects or abilities granted by each reconstructed relic.
+   - Thoroughly test all aspects of the relic system (collection, UI, reconstruction, persistence, effects).
+
+2. **UI Improvements (General)**
    - Better visual indicators for abilities
    - Enhanced contract display
    - More informative player status screen
@@ -51,15 +60,17 @@
 
 ## Current Status
 
-The refactoring effort has significantly improved the codebase organization and maintainability. The game is now structured in a way that makes it much easier for AI coding agents to comprehend and extend. Key improvements include:
+The refactoring effort has significantly improved the codebase organization and maintainability. The game is now structured in a way that makes it much easier for AI coding agents to comprehend and extend.
 
-- Created a clear module structure with well-defined responsibilities
-- Centralized configuration parameters for easier tweaking
-- Added comprehensive documentation in code and separate guide
-- Improved the rendering system with specialized rendering functions
-- Enhanced the world generation with a more robust Perlin noise implementation
+**Recent Developments (Post-Refactor):**
+- **Relic Reconstruction System**: A major feature, the Relic Reconstruction UI and its underlying mechanics (fragment collection, spending, status tracking, persistence) have been implemented. This includes:
+    - UI display for relics and fragments.
+    - Player input (`r` key) to attempt reconstruction.
+    - Debug keys (F1 for fragments, F2 for instant reconstruction).
+    - Fixes to ensure correct data handling during save/load and player death, preventing issues like fragment doubling or loss of relic definitions.
+- Key modules like `GameManager`, `Renderer`, `InputHandler`, and `GameConfig` were updated to support this system.
 
-The core functionality remains intact, but is now more maintainable and extensible. The next steps are to test the refactored codebase thoroughly to ensure no regressions have been introduced, then proceed with implementing the remaining features.
+The core functionality remains intact and has been extended with the relic system. The next steps involve thoroughly testing this new system and then defining the actual gameplay benefits of reconstructing relics.
 
 ## Evolution of Project Decisions
 

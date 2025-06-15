@@ -15,6 +15,7 @@ function Renderer.render()
     Renderer.renderUI()
     Renderer.renderNotifications()
     Renderer.renderContracts()
+    Renderer.renderRelicReconstructionUI() -- Add call to new UI function
 end
 
 -- Render the world tiles
@@ -163,6 +164,42 @@ function Renderer.renderUI()
     
     -- Render meta resources
     love.graphics.print("Crystals: " .. gameState.meta.banked_resources.crystal, 10, screenHeight - 30)
+end
+
+-- Render Relic Reconstruction UI
+function Renderer.renderRelicReconstructionUI()
+    local gameState = GameManager.GameState
+    local screenWidth, screenHeight = love.graphics.getDimensions()
+    local startX = screenWidth - GameConfig.UI.RELIC_UI_OFFSET_X -- Use config value
+    local startY = screenHeight - GameConfig.UI.RELIC_UI_OFFSET_Y -- Use config value
+    local lineHeight = 20
+
+    love.graphics.setColor(1, 1, 1) -- White text
+    love.graphics.print("Relic Reconstruction:", startX, startY)
+    startY = startY + lineHeight + 5 -- Add some padding
+
+    if gameState.meta.relics and #gameState.meta.relics > 0 then
+        for i, relic in ipairs(gameState.meta.relics) do
+            local relicStatus = relic.reconstructed and " (Reconstructed)" or ""
+            love.graphics.print(relic.name .. relicStatus, startX, startY)
+            startY = startY + lineHeight
+
+            if not relic.reconstructed then
+                for fragmentType, requiredCount in pairs(relic.fragments) do
+                    local currentCount = 0
+                    if gameState.player.inventory.relic_fragments and gameState.player.inventory.relic_fragments[fragmentType] then
+                        currentCount = gameState.player.inventory.relic_fragments[fragmentType]
+                    end
+                    local fragmentText = string.format("- %s: %d/%d", fragmentType, currentCount, requiredCount)
+                    love.graphics.print(fragmentText, startX + 15, startY)
+                    startY = startY + lineHeight
+                end
+            end
+            startY = startY + (lineHeight / 2) -- Extra space between relics
+        end
+    else
+        love.graphics.print("No relics defined.", startX, startY)
+    end
 end
 
 -- Render notifications

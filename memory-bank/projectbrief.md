@@ -30,7 +30,11 @@ GameState = {
   player = {
     x = 1, y = 1,
     stamina = 100,
-    inventory = {torch = 3, rope = 2},
+    inventory = {
+        torch = 3, 
+        rope = 2,
+        relic_fragments = {} -- e.g., {time = 2, space = 1}
+    },
     abilities = {}
   },
   
@@ -42,7 +46,11 @@ GameState = {
   meta = {  -- Persists across runs
     unlocked_abilities = {"basic_map"},
     banked_resources = {crystal = 0},
-    discovered_landmarks = {}
+    discovered_landmarks = {},
+    relics = { -- Definition of relics and their reconstruction status
+        -- Example: {name = "Chrono Prism", fragments = {time=3, space=2}, reconstructed = false}
+    },
+    relic_fragments = {} -- Persisted player fragments, e.g. {time = 1}
   }
 }
 ```
@@ -115,9 +123,11 @@ graph TD
 **Persistent Elements**:  
 - Unlocked abilities (e.g., "glide", "hazard_resist")  
 - Banked resources (max 1 saved per run)  
-- Discovered landmark coordinates  
+- Discovered landmark coordinates
+- Collected relic fragments
+- Reconstructed relic statuses
 
-**Death Handling**:  
+**Death Handling**:
 ```lua
 function onPlayerDeath()
   saveToMeta({
@@ -143,7 +153,8 @@ player: RED circle at (x*32, y*32)
 **UI Elements**:  
 - Top-left: Stamina bar (GREEN/YELLOW/RED gradient)  
 - Top-right: Active contract description  
-- Bottom-right: Inventory counts  
+- Bottom-right: Inventory counts
+- Bottom-right (new): Relic Reconstruction UI (shows relic status and fragment requirements)
 
 ---
 
@@ -151,9 +162,11 @@ player: RED circle at (x*32, y*32)
 **Data to Persist**:  
 - `meta.unlocked_abilities`  
 - `meta.banked_resources`  
-- `meta.discovered_landmarks`  
+- `meta.discovered_landmarks`
+- `meta.relics` (status of each relic)
+- `meta.relic_fragments` (player's collected fragments)
 
-**Operations**:  
+**Operations**:
 ```lua
 function saveGame()
   serialized = serpent.dump(GameState.meta)

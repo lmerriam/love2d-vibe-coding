@@ -87,24 +87,61 @@ end
 
 -- Load game state from file
 function GameManager.loadGame()
+    -- GameManager.GameState.meta already holds the default values (including relics)
+    -- as defined at the top of this file when GameManager.GameState is initialized.
+    -- We will selectively update these defaults with values from the save file if they exist.
+
     if love.filesystem.getInfo(GameConfig.SAVE.FILENAME) then
-        local data = love.filesystem.read(GameConfig.SAVE.FILENAME)
-        local ok, saved = serpent.load(data)
-        if ok then
-            -- Only load persistent meta data
-            GameManager.GameState.meta = saved.meta or GameManager.GameState.meta
+        local fileData = love.filesystem.read(GameConfig.SAVE.FILENAME)
+        local ok, loadedSaveObject = serpent.load(fileData) -- loadedSaveObject is like { meta = { ... } }
+
+        if ok and loadedSaveObject and loadedSaveObject.meta then
+            local loadedMetaFromSave = loadedSaveObject.meta
+            
+            -- Update known fields in GameState.meta from loadedMetaFromSave if they exist.
+            -- If a field is not present in loadedMetaFromSave, the default value in GameState.meta remains.
+            if loadedMetaFromSave.banked_resources ~= nil then
+                GameManager.GameState.meta.banked_resources = loadedMetaFromSave.banked_resources
+            end
+            if loadedMetaFromSave.unlocked_abilities ~= nil then
+                GameManager.GameState.meta.unlocked_abilities = loadedMetaFromSave.unlocked_abilities
+            end
+            if loadedMetaFromSave.discovered_landmarks ~= nil then
+                GameManager.GameState.meta.discovered_landmarks = loadedMetaFromSave.discovered_landmarks
+            end
+            if loadedMetaFromSave.relics ~= nil then
+                -- If the save file has a 'relics' table, use it.
+                GameManager.GameState.meta.relics = loadedMetaFromSave.relics
+            end
+            -- If loadedMetaFromSave.relics is nil (e.g., from an old save file without this field),
+            -- then GameManager.GameState.meta.relics will retain its default value,
+            -- which was set when GameManager.GameState was initially defined.
+            
+            -- Ensure crucial sub-fields are present, e.g. crystal in banked_resources
+            if GameManager.GameState.meta.banked_resources == nil then
+                 GameManager.GameState.meta.banked_resources = {crystal = 0} -- Default if banked_resources itself was nil
+            elseif GameManager.GameState.meta.banked_resources.crystal == nil then
+                 GameManager.GameState.meta.banked_resources.crystal = 0 -- Default if crystal key was missing
+            end
+
         end
+        -- If 'ok' is false, or loadedSaveObject/loadedSaveObject.meta is nil,
+        -- GameState.meta remains unchanged (i.e., it keeps its default values).
     end
+    -- If no save file exists, GameState.meta also remains unchanged (i.e., it keeps its default values).
 end
 
 -- Handle player death
 function GameManager.onPlayerDeath()
-    -- Save all relic fragments to meta progression
+    -- Persist the player's current relic fragments to meta.
+    -- The player's inventory at the time of death reflects what they should carry over.
     if GameManager.GameState.player.inventory and GameManager.GameState.player.inventory.relic_fragments then
-        GameManager.GameState.meta.relic_fragments = GameManager.GameState.meta.relic_fragments or {}
-        for fragment_type, count in pairs(GameManager.GameState.player.inventory.relic_fragments) do
-            GameManager.GameState.meta.relic_fragments[fragment_type] = (GameManager.GameState.meta.relic_fragments[fragment_type] or 0) + count
-        end
+        -- We want meta to store the player's current fragment counts, not add to a previous meta count.
+        -- So, we directly assign a deep copy of the player's current fragments to meta.
+        GameManager.GameState.meta.relic_fragments = GameManager.deepCopy(GameManager.GameState.player.inventory.relic_fragments)
+    else
+        -- If player has no fragments in inventory, ensure meta reflects that (or an empty table if it was nil)
+        GameManager.GameState.meta.relic_fragments = {}
     end
     
     -- Save discovered landmarks
@@ -357,6 +394,105 @@ function GameManager.toggleViewMode()
     else
         GameManager.GameState.viewMode = "zoomed"
     end
+end
+
+-- Debug function to add relic fragments
+function GameManager.addDebugRelicFragments()
+    local player = GameManager.GameState.player
+    local relics = GameManager.GameState.meta.relics or {} -- Default to empty table if nil
+    local amountToAdd = GameConfig.DEBUG.FRAGMENT_ADD_AMOUNT
+
+    if not player.inventory.relic_fragments then
+        player.inventory.relic_fragments = {}
+    end
+
+    if #relics == 0 then
+        GameManager.addNotification("Debug: No relics defined in GameState.meta to add fragments for.")
+        return
+    end
+
+    for _, relic in ipairs(relics) do
+        if relic and relic.fragments then -- Ensure relic and its fragments table exist
+            for fragmentType, _ in pairs(relic.fragments) do
+                player.inventory.relic_fragments[fragmentType] = (player.inventory.relic_fragments[fragmentType] or 0) + amountToAdd
+            end
+        end
+    end
+    GameManager.addNotification(string.format("Added %d of each defined relic fragment type (debug).", amountToAdd))
+end
+
+-- Debug function to mark the next available relic as reconstructed
+function GameManager.debugReconstructNextRelic()
+    local relics = GameManager.GameState.meta.relics or {}
+    local reconstructedRelicName = nil
+
+    if #relics == 0 then
+        GameManager.addNotification("Debug: No relics defined in GameState.meta to reconstruct.")
+        return
+    end
+
+    for i, relic in ipairs(relics) do
+        if relic and not relic.reconstructed then
+            relic.reconstructed = true
+            reconstructedRelicName = relic.name
+            break -- Reconstruct only one relic per key press
+        end
+    end
+
+    if reconstructedRelicName then
+        GameManager.addNotification(string.format("Debug: Reconstructed relic '%s'.", reconstructedRelicName))
+    else
+        GameManager.addNotification("Debug: All defined relics are already reconstructed.")
+    end
+end
+
+-- Attempt to reconstruct a relic
+function GameManager.attemptRelicReconstruction()
+    local player = GameManager.GameState.player
+    local metaRelics = GameManager.GameState.meta.relics or {}
+    local playerFragments = player.inventory.relic_fragments or {}
+    local canReconstructAny = false
+    local allRelicsDone = true
+
+    for i, relic in ipairs(metaRelics) do
+        if not relic.reconstructed then
+            allRelicsDone = false -- Found at least one not reconstructed
+            local hasEnoughFragments = true
+            if relic.fragments then
+                for fragmentType, requiredCount in pairs(relic.fragments) do
+                    if (playerFragments[fragmentType] or 0) < requiredCount then
+                        hasEnoughFragments = false
+                        break
+                    end
+                end
+            else
+                hasEnoughFragments = false -- No fragments defined for relic, cannot reconstruct
+            end
+
+            if hasEnoughFragments then
+                canReconstructAny = true
+                -- Deduct fragments
+                for fragmentType, requiredCount in pairs(relic.fragments) do
+                    playerFragments[fragmentType] = playerFragments[fragmentType] - requiredCount
+                    if playerFragments[fragmentType] == 0 then
+                        playerFragments[fragmentType] = nil -- Clean up if count is zero
+                    end
+                end
+                
+                relic.reconstructed = true
+                GameManager.addNotification(string.format("Relic '%s' reconstructed!", relic.name))
+                -- TODO: Add any specific effects or ability unlocks for this relic
+                return true -- Successfully reconstructed one relic
+            end
+        end
+    end
+
+    if allRelicsDone then
+        GameManager.addNotification("All relics have already been reconstructed!")
+    elseif not canReconstructAny then
+        GameManager.addNotification("Not enough fragments to reconstruct any available relic.")
+    end
+    return false
 end
 
 -- Update camera position based on player position
