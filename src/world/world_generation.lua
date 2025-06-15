@@ -52,13 +52,13 @@ end
 local WorldGeneration = {}
 
 -- Biome definitions
-local BIOMES = {
+WorldGeneration.BIOMES = {
     {id = 1, name = "Rusted Oasis", color = {200, 180, 100}, risk = "Low", hazard = "None"},
     {id = 2, name = "Veiled Jungle", color = {30, 120, 40}, risk = "Medium", hazard = "20% stamina drain"},
     {id = 3, name = "Stormspire Peaks", color = {120, 120, 140}, risk = "High", hazard = "40% stamina drain or reward"}
 }
 
-local LANDMARK_TYPES = {"Temple", "Caravan", "Cave", "Monolith"}
+local LANDMARK_TYPES = {"Temple", "Caravan", "Cave", "Monolith", "Contract_Scroll"}
 
 -- Generate a new world
 function WorldGeneration.generateWorld(width, height)
@@ -87,11 +87,11 @@ function WorldGeneration.generateWorld(width, height)
             local tile = world.tiles[x][y]
             
             if noiseValue < 0.3 then
-                tile.biome = BIOMES[1]
+                tile.biome = WorldGeneration.BIOMES[1]
             elseif noiseValue < 0.6 then
-                tile.biome = BIOMES[2]
+                tile.biome = WorldGeneration.BIOMES[2]
             else
-                tile.biome = BIOMES[3]
+                tile.biome = WorldGeneration.BIOMES[3]
             end
         end
     end
@@ -106,11 +106,20 @@ function WorldGeneration.generateWorld(width, height)
             
             -- Only place landmarks on walkable tiles (non-peak biomes)
             if tile.biome.id ~= 3 then
+                local landmarkType
+                
+                -- Randomly decide if this should be a contract scroll (25% chance)
+                if math.random() < 0.25 then
+                    landmarkType = "Contract_Scroll"
+                else
+                    landmarkType = LANDMARK_TYPES[math.random(#LANDMARK_TYPES - 1)]  -- Exclude scroll from normal selection
+                end
+                
                 tile.landmark = {
-                    type = LANDMARK_TYPES[math.random(#LANDMARK_TYPES)],
+                    type = landmarkType,
                     discovered = false,
-                    visited = false,  -- New visited state
-                    reward_type = "ability_" .. math.random(1, 5)
+                    visited = false,
+                    reward_type = landmarkType == "Contract_Scroll" and "contract" or "ability_" .. math.random(1, 5)
                 }
                 placed = true
             end

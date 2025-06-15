@@ -7,7 +7,9 @@ local GameState = {
     player = {
         x = 1,
         y = 1,
-        stamina = 100
+        stamina = 100,
+        inventory = {},
+        abilities = {}
     },
     meta = {
         banked_resources = {crystal = 0},
@@ -23,18 +25,49 @@ local GameState = {
 
 -- Load dependencies
 local WorldGeneration = require("src.world.world_generation")
+local ContractSystem = require("src.systems.contract_system")
+local serpent = require("lib.serpent")
 
 function love.load()
+    -- Load saved game if exists
+    if love.filesystem.getInfo("save.dat") then
+        local data = love.filesystem.read("save.dat")
+        local ok, saved = serpent.load(data)
+        if ok then
+            -- Only load persistent meta data
+            GameState.meta = saved.meta or GameState.meta
+        end
+    end
+    
     -- Initialize game world
     GameState.world = WorldGeneration.generateWorld(100, 100)
     print("World generated with dimensions: " .. GameState.world.width .. "x" .. GameState.world.height)
     
     -- Set default font
     love.graphics.setFont(love.graphics.newFont(14))
+    
+    -- Initialize contracts
+    GameState.contracts = {
+        active = {},
+        completed = 0
+    }
+    
+    -- Generate initial contract
+    local initialContract = ContractSystem.generateContract()
+    table.insert(GameState.contracts.active, initialContract)
 end
 
 function love.update(dt)
-    -- Update game logic
+    -- Update contract progress
+    for i, contract in ipairs(GameState.contracts.active) do
+        if not contract.completed then
+            -- Check contract completion
+            if ContractSystem.checkCompletion(contract, GameState.player, GameState.world) then
+                ContractSystem.grantReward(contract, GameState.player)
+                GameState.contracts.completed = GameState.contracts.completed + 1
+            end
+        end
+    end
 end
 
 function love.draw()
@@ -85,10 +118,14 @@ function love.draw()
                 love.graphics.setColor(tile.biome.color[1]/255, tile.biome.color[2]/255, tile.biome.color[3]/255)
                 love.graphics.rectangle("fill", screenX, screenY, tileSize, tileSize)
                 
-                -- Draw question mark for discovered but unvisited landmarks
+                -- Draw symbol for discovered but unvisited landmarks
                 if tile.landmark and tile.landmark.discovered and not tile.landmark.visited then
                     love.graphics.setColor(1, 1, 1)  -- White
-                    love.graphics.print("?", screenX + tileSize/2 - 3, screenY + tileSize/2 - 7)
+                    if tile.landmark.type == "Contract_Scroll" then
+                        love.graphics.print("S", screenX + tileSize/2 - 3, screenY + tileSize/2 - 7)
+                    else
+                        love.graphics.print("?", screenX + tileSize/2 - 3, screenY + tileSize/2 - 7)
+                    end
                 end
             else
                 -- Unexplored tiles are black
@@ -139,6 +176,34 @@ function love.draw()
     
     -- Render meta resources
     love.graphics.print("Crystals: " .. GameState.meta.banked_resources.crystal, 10, love.graphics.getHeight() - 30)
+    
+    -- Render active contracts
+    if #GameState.contracts.active > 0 then
+        love.graphics.setColor(1, 1, 1)
+        local yOffset = 30
+        for i, contract in ipairs(GameState.contracts.active) do
+            local contractType = ContractSystem.CONTRACT_TYPES[contract.type]
+            local description = contractType.description
+            
+            -- Format description with target and required values
+            if contract.type == "DISCOVER" then
+                description = string.format(description, contract.target)
+            elseif contract.type == "EXPLORE" then
+                local biomeName = "Unknown"
+                if WorldGeneration.BIOMES[contract.target] then
+                    biomeName = WorldGeneration.BIOMES[contract.target].name
+                end
+                description = string.format(description, contract.required, biomeName)
+            elseif contract.type == "COLLECT" then
+                description = string.format(description, contract.required, contract.target)
+            end
+            
+            love.graphics.print(description, love.graphics.getWidth() - 250, yOffset)
+            love.graphics.print("Progress: " .. contract.progress .. "/" .. contract.required, 
+                                love.graphics.getWidth() - 250, yOffset + 20)
+            yOffset = yOffset + 50
+        end
+    end
 end
 
 function love.keypressed(key)
@@ -174,9 +239,17 @@ function love.keypressed(key)
     local currentTile = GameState.world.tiles[GameState.player.x][GameState.player.y]
     if currentTile.landmark and currentTile.landmark.discovered and not currentTile.landmark.visited then
         currentTile.landmark.visited = true
-        -- Add reward when visiting a landmark
-        GameState.player.inventory = GameState.player.inventory or {}
-        GameState.player.inventory.relic_fragment = (GameState.player.inventory.relic_fragment or 0) + 1
+        
+        -- Handle different landmark types
+        if currentTile.landmark.type == "Contract_Scroll" then
+            -- Generate new contract from scroll
+            local newContract = ContractSystem.generateContract()
+            table.insert(GameState.contracts.active, newContract)
+        else
+            -- Add reward for regular landmark
+            GameState.player.inventory = GameState.player.inventory or {}
+            GameState.player.inventory.relic_fragment = (GameState.player.inventory.relic_fragment or 0) + 1
+        end
     end
 end
 
@@ -245,6 +318,9 @@ function onPlayerDeath()
         end
     end
     
+    -- Save game state before resetting
+    saveGame()
+
     -- Reset world and player
     GameState.world = WorldGeneration.generateWorld(100, 100)
     GameState.player = {
@@ -259,4 +335,20 @@ function onPlayerDeath()
     for _, ability in ipairs(GameState.meta.unlocked_abilities) do
         table.insert(GameState.player.abilities, ability)
     end
+end
+
+-- Save game state to file
+function saveGame()
+    -- Only save persistent meta data
+    local dataToSave = {
+        meta = GameState.meta
+    }
+    
+    local serialized = serpent.dump(dataToSave)
+    love.filesystem.write("save.dat", serialized)
+end
+
+-- Handle game quit event
+function love.quit()
+    saveGame()
 end

@@ -3,37 +3,31 @@
 ---
 
 ### **CURRENT WORK FOCUS**
-- Implementing contract system
-- Enhancing UI/UX elements
-- Finalizing meta-progression implementation
+- Enhancing rendering (landmarks, fog of war, biome textures)
+- Improving UI/UX elements (contract UI, inventory limits)
 
 ---
 
 ### **RECENT CHANGES**
-- Implemented biome-specific hazard system with stamina drain mechanics
-- Added player death handling with meta-progression saving
-- Created inventory system with UI display
-- Implemented landmark discovery mechanics
-- Added meta resource tracking and display
-- Fixed exploration radius logic
+- Implemented save/load system with serpent serialization
+- Added persistent meta-progression saving
+- Created save/load handlers for game state
+- Updated contract system with scroll discovery
+- Added contract UI display and progress tracking
+- Implemented contract reward distribution
 
 ---
 
 ### **NEXT STEPS**
-1. **Contract System**:
-   - Implement contract generation logic
-   - Create progress tracking
-   - Add reward distribution
+1. **Enhanced Rendering**:
+   - Replace landmark "?" placeholders with proper visuals
+   - Implement smooth fog of war transitions
+   - Add biome-specific tile textures
 
-2. **Enhanced Rendering**:
-   - Add landmark visualization
-   - Implement proper fog of war
-   - Create biome-specific tile rendering
-
-3. **Save/Load System**:
-   - Integrate serpent.lua for serialization
-   - Implement persistent meta-progression
-   - Add save/load handlers
+2. **UI Improvements**:
+   - Polish contract UI layout
+   - Add visual indicators for active contracts
+   - Implement inventory capacity limits
 
 ---
 
@@ -41,8 +35,9 @@
 - Using a global GameState table for simplicity
 - Separating run-specific state from persistent meta-state
 - Implementing systems as decoupled modules
-- Using observer pattern for event-driven systems
-- Using a simplified inventory system for prototype
+- Using observer pattern for contract events
+- Use placeholder assets and UI until the game is ready to be polished
+- Saving only meta data for persistence between sessions
 
 ---
 
@@ -56,8 +51,9 @@
 ---
 
 ### **LEARNINGS AND PROJECT INSIGHTS**
-- Biome hazard probabilities need careful balancing
-- Inventory system should have capacity limits
-- Landmark discovery adds meaningful exploration goals
-- Meta-progression provides important player retention
-- UI needs to be clean and non-intrusive
+- Save/load implementation is crucial for roguelite progression
+- Contract system provides clear player direction
+- Scroll discovery mechanic encourages exploration
+- UI space is limited - need to design compact information displays
+- Reward distribution needs balancing
+- Contract progress tracking impacts performance - needs optimization
