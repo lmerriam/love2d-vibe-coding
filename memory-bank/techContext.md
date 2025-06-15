@@ -1,85 +1,130 @@
-### **TECH CONTEXT: "SHATTERED EXPANSE"**
+# Technical Context
 
----
+## Technologies Used
 
-### **TECHNOLOGIES USED**
-- **Primary Engine**: Love2D (v11.4)
-- **Programming Language**: Lua (5.1)
-- **Dependencies**:
-  - `serpent.lua`: Serialization for save/load functionality
-- **Development Tools**:
-  - VS Code with Lua Language Server extension
-  - Love2D debugger
+- **LÖVE2D (Love)**: A framework for making 2D games in Lua
+- **Lua**: The programming language used throughout the project
+- **Serpent**: A serialization library for Lua tables
+- **Perlin Noise**: Implementation for procedural world generation
 
----
+## Development Environment
 
-### **DEVELOPMENT SETUP**
-1. **Environment Configuration**:
-   - Install Love2D framework
-   - Clone project repository
-   - Install dependencies via LuaRocks:
-     ```
-     luarocks install serpent
-     ```
-2. **Project Structure**:
+- Love2D version: 11.4
+- No additional build tools required
+- Uses standard Love2D callback structure (load, update, draw)
+
+## Project Structure
+
+The codebase follows a modular architecture with clear separation of concerns:
+
+```
+/
+├── lib/                      # External libraries and dependencies
+│   ├── perlin.lua            # Perlin noise implementation for procedural generation
+│   └── serpent.lua           # Serialization library for save/load
+├── src/                      # Source code
+│   ├── config/               # Configuration settings
+│   │   └── game_config.lua   # Centralized game constants and settings
+│   ├── core/                 # Core game systems
+│   │   └── game_manager.lua  # Game state and management
+│   ├── input/                # Input handling
+│   │   └── input_handler.lua # Processes user input
+│   ├── rendering/            # Rendering systems
+│   │   └── renderer.lua      # Handles all rendering operations
+│   ├── systems/              # Game systems
+│   │   ├── ability_system.lua # Player abilities and effects
+│   │   └── contract_system.lua # Contract generation and management
+│   ├── world/                # World-related code
+│   │   └── world_generation.lua # Procedural world generation
+│   └── ui/                   # User interface components
+├── main.lua                  # Entry point and LÖVE callbacks
+└── documentation/            # Documentation files
+    └── ai_development_guide.md # Developer guide
+```
+
+## Technical Implementation Details
+
+### Module System
+
+Each major component is implemented as a Lua module with explicit exports. For example:
+
+```lua
+local MyModule = {}
+
+function MyModule.publicFunction()
+    -- Implementation
+end
+
+local function privateFunction()
+    -- Implementation 
+end
+
+return MyModule
+```
+
+### State Management
+
+Game state is centralized in `GameManager.GameState`, allowing for easy access to the current state of the game from any module. State modifications are done through GameManager functions to ensure consistency.
+
+### Configuration System
+
+All game constants and configuration settings are centralized in `src/config/game_config.lua` to make it easy to find and modify parameters. This includes:
+
+- World dimensions and tile sizes
+- Player starting values
+- Hazard probabilities and effects
+- UI layout parameters
+- Save file settings
+
+### Love2D Callback Structure
+
+The game follows the standard Love2D callback structure:
+
+- `love.load()`: Initializes the game
+- `love.update(dt)`: Updates game state
+- `love.draw()`: Renders the game
+- `love.keypressed(key)`: Handles key presses
+
+These callbacks are kept minimal in main.lua and delegate to the appropriate modules.
+
+## Technical Constraints
+
+- **Performance**: The game uses a 100x100 grid for world representation, which requires careful optimization for rendering and contract checking.
+- **Memory Usage**: The world state can become large, especially with explored tile tracking.
+- **Save Data**: Uses Lua's serialization through the Serpent library, which has some limitations for complex data structures.
+
+## Dependency Management
+
+The project has minimal external dependencies:
+
+- **serpent.lua**: Used for serialization/deserialization of game state for save/load functionality.
+- **perlin.lua**: A custom implementation of Perlin noise for procedural generation.
+
+Both are included directly in the lib/ directory, so no additional installation is required.
+
+## Development Workflow
+
+1. **Run the Game**: Use the Love2D engine to run the game directly
    ```
-   /src
-     /world        - World generation and management
-     /entities     - Player and game entities
-     /systems      - Game systems (movement, hazards, etc.)
-     /ui           - User interface components
-     /utils        - Utility functions and helpers
-   main.lua        - Entry point
+   love .
    ```
 
-3. **Build & Run**:
-   - Execute with: `love .` in project root
-   - Debug with VS Code Love2D launch configuration
+2. **Development Cycle**:
+   - Make changes to source files
+   - Run the game to test changes
+   - Use Ctrl+S in-game to save progress if needed
+   - Escape key exits the game
 
----
+3. **Debugging**:
+   - Use print() statements to output to the console
+   - Love2D provides error messages with stack traces
 
-### **TECHNICAL CONSTRAINTS**
-1. **Performance Limitations**:
-   - Tile-based rendering must be optimized for 100x100 grid
-   - Perlin noise generation should be precomputed at world creation
-   - Avoid expensive operations in main game loop
+## AI Development Approach
 
-2. **Memory Management**:
-   - Lua garbage collection can cause hitches
-   - Minimize table allocations during gameplay
-   - Use object pooling for entities
+For AI-assisted development, the codebase has been structured to be easily comprehensible:
 
-3. **Platform Support**:
-   - Target platforms: Windows, macOS, Linux
-   - Screen resolution: Minimum 1024x768
-
----
-
-### **DEPENDENCIES**
-1. **Core Dependencies**:
-   - `serpent.lua`: MIT License
-2. **Version Constraints**:
-   - Love2D: 11.4+
-   - Lua: 5.1+
-
-3. **Dependency Management**:
-   - Dependencies included in `lib/` directory
-   - No external package manager required
-
----
-
-### **TOOL USAGE PATTERNS**
-1. **Development Workflow**:
-   - TDD approach with busted unit tests
-   - Version control with Git
-   - Continuous integration for build verification
-
-2. **Debugging Practices**:
-   - Love2D's built-in console output
-   - VS Code debugger with breakpoints
-   - Runtime performance profiling
-
-3. **Asset Management**:
-   - Sprites stored in `assets/sprites/`
-   - Fonts stored in `assets/fonts/`
-   - Configuration files in `config/`
+1. **Modular Organization**: Clear separation of concerns makes it easy to focus on specific components
+2. **Comprehensive Documentation**: Code comments and a dedicated development guide
+3. **Centralized Configuration**: Easy to find and adjust parameters
+4. **Consistent Patterns**: Same patterns used throughout the codebase
+5. **Memory Bank**: Detailed tracking of project state, decisions, and progress
