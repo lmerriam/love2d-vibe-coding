@@ -34,16 +34,27 @@
         - Void Anchor: Chance to ignore hazard stamina loss.
         - Life Spring: Increases starting stamina.
         - Effects are configured in `game_config.lua` and integrated into `game_manager.lua`.
+  - **Landmark Navigation Enhancement (Obelisk-Spring)**:
+    - Added "Ancient Obelisk" and "Hidden Spring" landmark types.
+    - Obelisks now reveal the location of a linked Hidden Spring upon discovery.
+    - Implemented generation logic for these pairs in `world_generation.lua`.
+    - Added `OBELISK_PAIRS_COUNT` to `game_config.lua`.
+    - Updated `game_manager.lua` to handle the reveal mechanic (including setting the revealed tile as `explored` for minimap visibility) and notifications.
+    - Updated `renderer.lua` to display unique map icons ("O", "H") for these landmarks when discovered but unvisited.
 
 ## What's Left to Build
 
 1.  **Gameplay Testing & Balancing**:
+    *   **Test Landmark Navigation Enhancement (Obelisk-Spring)**:
+        *   Verify Obelisks and Hidden Springs are generated according to `OBELISK_PAIRS_COUNT`.
+        *   Confirm visiting an Ancient Obelisk reveals its linked Hidden Spring on the map (landmark `discovered` and tile `explored` are true).
+        *   Verify the revealed Hidden Spring is visible on the minimap.
+        *   Check notifications and map symbols ("O", "H").
+        *   Assess gameplay impact.
     *   Thoroughly test the new stamina system (no default loss, hazard-only loss).
-    *   Verify the new biome distribution (Desert most common, Mountains least).
+    *   Verify the new biome distribution (Desert most common, Mountains least) and overall world structure (regions, corridors, chokepoints).
     *   Assess overall game difficulty and pacing with these changes.
 2.  **Relic System Review & Refinement**:
-    *   **Chrono Prism**: Thoroughly test its new effect (25% hazard stamina reduction) and ensure it stacks correctly with other relevant effects (e.g., Biome Mastery).
-    *   Test other active relic effects (Aether Lens, Void Anchor, Life Spring) with the new stamina system.
     *   Consider if any UI indicators are needed for active relic buffs.
 
 3. **UI Improvements (General)**
@@ -100,6 +111,22 @@ This section outlines brainstormed ideas to make world navigation more interesti
 The refactoring effort has significantly improved the codebase organization and maintainability. The game is now structured in a way that makes it much easier for AI coding agents to comprehend and extend.
 
 **Recent Developments (Post-Refactor):**
+- **Landmark Navigation Enhancement (Obelisk-Spring):**
+    - **`src/world/world_generation.lua`**: Added "Ancient Obelisk" and "Hidden Spring" to `LANDMARK_TYPES` and implemented paired placement logic. An Obelisk stores coordinates to its linked Spring, which is initially hidden.
+    - **`src/config/game_config.lua`**: Added `WORLD.OBELISK_PAIRS_COUNT` (set to 2).
+    - **`src/core/game_manager.lua`**: Updated `checkLandmark()` to handle Obelisk discovery, revealing the linked Hidden Spring on the map (setting landmark `discovered = true` and tile `explored = true` for minimap visibility) and providing notifications. Added specific reward for visiting a Hidden Spring.
+    - **`src/rendering/renderer.lua`**: Updated `renderWorld()` to display "O" for discovered Obelisks and "H" for discovered Hidden Springs (if unvisited).
+- **Impassable Terrain Tuning:**
+    - **`src/world/world_generation.lua`**: Increased `IMPASSABLE_CHANCE` to 0.75 for "Impassable Mountain Face" generation to create more solid barriers.
+- **UI Bug Fix (Inventory Display):**
+    - **`src/rendering/renderer.lua`**: Fixed a bug in `renderUI` where boolean inventory items (e.g., `has_climbing_picks`) would cause a concatenation error. Boolean values are now displayed as "Yes"/"No".
+- **Environmental Barriers & Item Gating (Phase 4a - Impassable Mountains):**
+    - **`src/config/game_config.lua`**: Added `IMPASSABLE_MOUNTAIN_FACE` to `BIOME_IDS` and `DEBUG_ADD_CLIMBING_PICKS_KEY` ("f4").
+    - **`src/world/world_generation.lua`**: Defined "Impassable Mountain Face" biome properties (including `is_impassable = true`) and added a pass to generate these at Mountain/Plains borders.
+    - **`src/core/game_manager.lua`**: Updated `movePlayer` to block movement into impassable tiles unless the player has `has_climbing_picks` for mountain faces. Added `debugAddClimbingPicks` function.
+    - **`src/input/input_handler.lua`**: Added "f4" key handler for `debugAddClimbingPicks`.
+- **Strategic Corridor Refinement (Path Wobble):**
+    - **`src/world/world_generation.lua`**: Enhanced strategic corridor generation by adding a "wobble" effect (random perpendicular offsets to path segments) to make them appear more natural. This uses `WOBBLE_FREQUENCY` and `MAX_WOBBLE_OFFSET` constants and re-uses `getLine` to ensure connectivity between wobbled points.
 - **Biome Distribution Tuning:**
     - **`src/config/game_config.lua`**: Adjusted `minNoise` and `maxNoise` thresholds in `WORLD_REGIONS` biome palettes to promote more varied biome generation.
 - **World Generation Overhaul (Phase 3 - Strategic Corridors Complete):**

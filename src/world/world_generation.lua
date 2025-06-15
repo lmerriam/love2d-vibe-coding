@@ -37,6 +37,13 @@ WorldGeneration.BIOMES = {
         color = {200, 200, 255}, 
         traversal_difficulty = 3,
         hazard = "Stamina loss" 
+    },
+    [6] = {
+        name = "Impassable Mountain Face",
+        color = {80, 80, 90}, -- Darker grey/blue
+        traversal_difficulty = 99, -- Effectively impassable
+        hazard = "None",
+        is_impassable = true
     }
 }
 
@@ -47,6 +54,8 @@ local LANDMARK_TYPES = {
     "Crystal Formation",
     "Abandoned Camp",
     "Strange Monolith",
+    "Ancient Obelisk", -- New: Reveals a Hidden Spring
+    "Hidden Spring",   -- New: Revealed by an Ancient Obelisk
     "Contract_Scroll"  -- Special landmark that gives a new contract
 }
 
@@ -240,15 +249,54 @@ function WorldGeneration.generateWorld(width, height)
     end
     
     if start_hub_coords and target_hub_coords then
-        local corridor_path = getLine(start_hub_coords.x, start_hub_coords.y, target_hub_coords.x, target_hub_coords.y)
+        local base_corridor_path = getLine(start_hub_coords.x, start_hub_coords.y, target_hub_coords.x, target_hub_coords.y)
         local corridor_width = 1 -- 1 tile on each side, so 3 wide total
+        
+        local WOBBLE_FREQUENCY = 0.2 -- Apply wobble to 20% of path segments
+        local MAX_WOBBLE_OFFSET = 2  -- Max perpendicular offset
 
-        for _, p_tile in ipairs(corridor_path) do
-            for dx = -corridor_width, corridor_width do
-                for dy = -corridor_width, corridor_width do
-                    -- Only carve a straight line for now, not a full square brush
-                    if not (dx ~= 0 and dy ~= 0) then -- Avoid corners of the square brush for a + shape
-                        local carve_x, carve_y = p_tile.x + dx, p_tile.y + dy
+        local wobbled_corridor_path = {}
+        local last_x, last_y = base_corridor_path[1].x, base_corridor_path[1].y
+        table.insert(wobbled_corridor_path, {x = last_x, y = last_y})
+
+        for i = 2, #base_corridor_path do
+            local current_p_tile = base_corridor_path[i]
+            local next_x, next_y = current_p_tile.x, current_p_tile.y
+
+            if math.random() < WOBBLE_FREQUENCY then
+                local dx_path = next_x - last_x
+                local dy_path = next_y - last_y
+                local wobble_offset_val = math.random(-MAX_WOBBLE_OFFSET, MAX_WOBBLE_OFFSET)
+                
+                if dx_path == 0 then -- Vertical segment, wobble horizontally
+                    next_x = math.max(1, math.min(width, next_x + wobble_offset_val))
+                elseif dy_path == 0 then -- Horizontal segment, wobble vertically
+                    next_y = math.max(1, math.min(height, next_y + wobble_offset_val))
+                else -- Diagonal segment, choose one axis to wobble or apply more complex logic
+                    if math.random() < 0.5 then
+                        next_x = math.max(1, math.min(width, next_x + wobble_offset_val))
+                    else
+                        next_y = math.max(1, math.min(height, next_y + wobble_offset_val))
+                    end
+                end
+            end
+            -- To ensure connectivity with wobble, we might need to draw lines between wobbled points
+            -- For simplicity now, just add the (potentially) wobbled point.
+            -- A more robust approach would be to getLine between last_wobbled_point and current_wobbled_point.
+            -- However, for small wobbles, direct addition might be okay.
+            local intermediate_points = getLine(last_x, last_y, next_x, next_y)
+            for j = 2, #intermediate_points do -- Start from 2nd point as last_x, last_y is already added
+                table.insert(wobbled_corridor_path, intermediate_points[j])
+            end
+            last_x, last_y = next_x, next_y
+        end
+
+        for _, p_tile in ipairs(wobbled_corridor_path) do
+            for dx_brush = -corridor_width, corridor_width do
+                for dy_brush = -corridor_width, corridor_width do
+                    -- Only carve a straight line for now, not a full square brush (using + shape brush)
+                    if not (dx_brush ~= 0 and dy_brush ~= 0) then 
+                        local carve_x, carve_y = p_tile.x + dx_brush, p_tile.y + dy_brush
                         if WorldGeneration.isInBounds(world, carve_x, carve_y) then
                             local tile_region_id = region_map[carve_x][carve_y]
                             local tile_region_config = region_centers[tile_region_id] and region_centers[tile_region_id].config or nil
@@ -306,44 +354,146 @@ function WorldGeneration.generateWorld(width, height)
             end
         end
     end
+
+    -- Fourth pass: Place Impassable Mountain Faces
+    local IMPASSABLE_CHANCE = 0.75 -- Increased to 75% chance for a mountain edge to become impassable
+    for x = 1, width do
+        for y = 1, height do
+            if world.tiles[x][y].biome.id == GameConfig.BIOME_IDS.STORMSPIRE_PEAKS then
+                local adjacent_to_plains = false
+                local neighbors = {{0, -1}, {0, 1}, {-1, 0}, {1, 0}}
+                for _, offset in ipairs(neighbors) do
+                    local nx, ny = x + offset[1], y + offset[2]
+                    if WorldGeneration.isInBounds(world, nx, ny) and 
+                       world.tiles[nx][ny].biome.id == GameConfig.BIOME_IDS.RUSTED_OASIS then
+                        adjacent_to_plains = true
+                        break
+                    end
+                end
+
+                if adjacent_to_plains and math.random() < IMPASSABLE_CHANCE then
+                    local impassable_biome_id = GameConfig.BIOME_IDS.IMPASSABLE_MOUNTAIN_FACE
+                    world.tiles[x][y].biome = {
+                        id = impassable_biome_id,
+                        name = WorldGeneration.BIOMES[impassable_biome_id].name,
+                        color = WorldGeneration.BIOMES[impassable_biome_id].color,
+                        traversal_difficulty = WorldGeneration.BIOMES[impassable_biome_id].traversal_difficulty,
+                        hazard = WorldGeneration.BIOMES[impassable_biome_id].hazard,
+                        is_impassable = WorldGeneration.BIOMES[impassable_biome_id].is_impassable
+                    }
+                end
+            end
+        end
+    end
     
-    -- Fourth pass: Place landmarks
-    local landmarks_to_place = GameConfig.WORLD.LANDMARK_COUNT
+    -- Fifth pass: Place landmarks
+    local total_landmarks_to_place = GameConfig.WORLD.LANDMARK_COUNT
+    local obelisk_pairs_to_place = GameConfig.WORLD.OBELISK_PAIRS_COUNT or 0 -- Default to 0 if not in config yet
     local landmarks_placed = 0
     local attempts = 0
-    local max_attempts = width * height  -- Prevent infinite loops
+    local max_attempts_per_landmark = width * height / 4 -- Heuristic to prevent excessive looping for one landmark
+    local total_placement_attempts = 0
+    local max_total_attempts = width * height * 2
+
+
+    -- Helper function to find an empty spot for a landmark
+    local function findEmptySpotForLandmark(max_find_attempts)
+        for i = 1, max_find_attempts do
+            local lx = math.random(1, width)
+            local ly = math.random(1, height)
+            if not world.tiles[lx][ly].landmark then
+                return lx, ly
+            end
+        end
+        return nil, nil -- Could not find a spot
+    end
+
+    -- Place Obelisk-Spring pairs first
+    local obelisks_placed_count = 0
+    while obelisks_placed_count < obelisk_pairs_to_place and landmarks_placed < total_landmarks_to_place and total_placement_attempts < max_total_attempts do
+        total_placement_attempts = total_placement_attempts + 1
+        local obelisk_x, obelisk_y = findEmptySpotForLandmark(max_attempts_per_landmark)
+        if obelisk_x then
+            local spring_x, spring_y = findEmptySpotForLandmark(max_attempts_per_landmark)
+            if spring_x and (obelisk_x ~= spring_x or obelisk_y ~= spring_y) then -- Ensure spring is at a different location
+                -- Place Obelisk
+                world.tiles[obelisk_x][obelisk_y].landmark = {
+                    type = "Ancient Obelisk",
+                    discovered = false,
+                    visited = false,
+                    reveals_landmark_at = { x = spring_x, y = spring_y }
+                }
+                landmarks_placed = landmarks_placed + 1
+
+                -- Place Hidden Spring (if space allows for total landmarks)
+                if landmarks_placed < total_landmarks_to_place then
+                    world.tiles[spring_x][spring_y].landmark = {
+                        type = "Hidden Spring",
+                        discovered = false, -- Will be revealed by obelisk, not by normal exploration initially
+                        visited = false,
+                        is_hidden_spring = true,
+                        initially_hidden = true -- Custom flag
+                    }
+                    landmarks_placed = landmarks_placed + 1
+                    obelisks_placed_count = obelisks_placed_count + 1
+                else
+                    -- Not enough total landmark slots for the spring, undo obelisk
+                    world.tiles[obelisk_x][obelisk_y].landmark = nil
+                    landmarks_placed = landmarks_placed - 1
+                    -- Potentially log this issue or handle it, for now, just means fewer pairs
+                    break -- Stop trying to place pairs if we can't fit them
+                end
+            end
+        end
+        if total_placement_attempts > max_total_attempts / 2 and obelisks_placed_count == 0 then
+             print("Warning: Struggling to place initial obelisk pairs.") -- Avoid infinite loop if world is too small or full
+        end
+    end
+
+    -- Place remaining landmarks
+    local regular_landmarks_to_place = total_landmarks_to_place - landmarks_placed
+    local regular_landmarks_placed_count = 0
     
-    while landmarks_placed < landmarks_to_place and attempts < max_attempts do
-        attempts = attempts + 1
+    -- Create a list of regular landmark types (excluding Obelisk and Spring, and Contract Scroll for now)
+    local regular_landmark_pool = {}
+    for _, l_type in ipairs(LANDMARK_TYPES) do
+        if l_type ~= "Ancient Obelisk" and l_type ~= "Hidden Spring" and l_type ~= "Contract_Scroll" then
+            table.insert(regular_landmark_pool, l_type)
+        end
+    end
+
+    while regular_landmarks_placed_count < regular_landmarks_to_place and landmarks_placed < total_landmarks_to_place and total_placement_attempts < max_total_attempts do
+        total_placement_attempts = total_placement_attempts + 1
+        local x, y = findEmptySpotForLandmark(max_attempts_per_landmark)
         
-        -- Pick a random location
-        local x = math.random(1, width)
-        local y = math.random(1, height)
-        
-        -- Check if the tile doesn't already have a landmark
-        if not world.tiles[x][y].landmark then
-            -- Determine landmark type
+        if x and y then
             local landmark_type
-            if math.random() < GameConfig.WORLD.LANDMARK_SCROLL_CHANCE then
+            if math.random() < GameConfig.WORLD.LANDMARK_SCROLL_CHANCE and (#LANDMARK_TYPES > 2) then -- Ensure Contract_Scroll can be placed
                 landmark_type = "Contract_Scroll"
             else
-                -- Select a random landmark type except Contract_Scroll
-                local index = math.random(1, #LANDMARK_TYPES - 1)
-                landmark_type = LANDMARK_TYPES[index]
+                if #regular_landmark_pool > 0 then
+                    landmark_type = regular_landmark_pool[math.random(1, #regular_landmark_pool)]
+                else
+                    -- Fallback if pool is empty for some reason, though it shouldn't be
+                    landmark_type = LANDMARK_TYPES[1] -- Default to first available type
+                end
             end
             
-            -- Add the landmark to the tile
             world.tiles[x][y].landmark = {
                 type = landmark_type,
                 discovered = false,
                 visited = false
             }
-            
             landmarks_placed = landmarks_placed + 1
+            regular_landmarks_placed_count = regular_landmarks_placed_count + 1
+        end
+        if total_placement_attempts > max_total_attempts * 0.9 and regular_landmarks_placed_count < regular_landmarks_to_place / 2 then
+            print("Warning: Struggling to place remaining regular landmarks.")
+            break -- Avoid excessive looping
         end
     end
     
-    print("World generation complete. Placed " .. landmarks_placed .. " landmarks. Region, corridor, and chokepoint passes complete.")
+    print("World generation complete. Placed " .. landmarks_placed .. " landmarks (" .. obelisks_placed_count .. " obelisk pairs). Region, corridor, chokepoint, and impassable terrain passes complete.")
     return world
 end
 

@@ -3,7 +3,12 @@
 ---
 
 ### **CURRENT WORK FOCUS**
-- **Biome Distribution Tuning:** Adjusted Perlin noise thresholds within `WORLD_REGIONS` in `src/config/game_config.lua` to improve the variety of biomes generated, addressing an issue where only Plains and Desert were appearing frequently.
+- **Landmark Navigation Enhancement (Obelisk-Spring):** Implemented a system where "Ancient Obelisks" reveal the locations of "Hidden Springs," enhancing landmark interaction for navigation.
+- **Previous: Impassable Terrain Tuning:** Increased `IMPASSABLE_CHANCE` to 0.75 in `src/world/world_generation.lua` to make "Impassable Mountain Face" barriers more consistent and less sparse.
+- **Previous: UI Bug Fix (Inventory Display):** Fixed UI rendering for boolean inventory items.
+- **Previous: Environmental Barriers & Item Gating (Phase 4a - Impassable Mountains):** Implemented "Impassable Mountain Face" biome and "Climbing Picks" item.
+- **Previous: Strategic Corridor Refinement (Path Wobble):** Enhanced strategic corridor generation.
+- **Previous: Biome Distribution Tuning:** Adjusted Perlin noise thresholds for better biome variety.
 - **Previous: World Generation Overhaul (Phase 3 - Strategic Corridors Complete):** Implemented logic to carve strategic corridors.
 - **Previous: Debug Feature Implementation:** Added a debug function to reveal the entire map.
 - **Previous: World Generation Overhaul (Phase 2 - Chokepoints Complete):** Implemented a simplified chokepoint generation system.
@@ -11,6 +16,44 @@
 ---
 
 ### **RECENT CHANGES**
+- **Landmark Navigation Enhancement (Obelisk-Spring):**
+    - **`src/world/world_generation.lua`**:
+        - Added "Ancient Obelisk" and "Hidden Spring" to `LANDMARK_TYPES`.
+        - Implemented logic to place a configured number of Obelisk-Spring pairs:
+            - "Ancient Obelisk" stores coordinates to its linked "Hidden Spring".
+            - "Hidden Spring" is marked as `initially_hidden` and `discovered = false`.
+    - **`src/config/game_config.lua`**:
+        - Added `WORLD.OBELISK_PAIRS_COUNT` (set to 2) to control how many pairs are generated.
+    - **`src/core/game_manager.lua`**:
+        - Updated `checkLandmark()`:
+            - When an "Ancient Obelisk" is visited, it reveals its linked "Hidden Spring" by setting the spring's `discovered` flag to `true` AND the spring's tile `explored` flag to `true` (to ensure minimap visibility).
+            - Added notifications for Obelisk discovery and Spring reveal.
+            - Added specific reward logic for visiting a Hidden Spring.
+    - **`src/rendering/renderer.lua`**:
+        - Updated `renderWorld()` to display unique symbols for discovered but unvisited landmarks: "O" for "Ancient Obelisk" and "H" for "Hidden Spring".
+- **Impassable Terrain Tuning:**
+    - **`src/world/world_generation.lua`**: Changed `IMPASSABLE_CHANCE` from 0.3 to 0.75 in the "Place Impassable Mountain Faces" pass.
+- **UI Bug Fix (Inventory Display):**
+    - **`src/rendering/renderer.lua`**: In `renderUI`, modified the inventory loop to check if an item's `value` is a boolean. If so, it displays "Yes" for true and "No" for false, preventing concatenation errors with boolean types. Other types are converted using `tostring()`.
+- **Environmental Barriers & Item Gating (Phase 4a - Impassable Mountains):**
+    - **`src/config/game_config.lua`**:
+        - Added `IMPASSABLE_MOUNTAIN_FACE = 6` to `BIOME_IDS`.
+        - Added `DEBUG_ADD_CLIMBING_PICKS_KEY = "f4"` to `DEBUG` table.
+    - **`src/world/world_generation.lua`**:
+        - Added "Impassable Mountain Face" biome (ID 6) to `WorldGeneration.BIOMES` table, including `is_impassable = true` property.
+        - Added a new generation pass to convert some Mountain biome tiles adjacent to Plains into "Impassable Mountain Face" tiles based on `IMPASSABLE_CHANCE`.
+    - **`src/core/game_manager.lua`**:
+        - Updated `movePlayer()` to check if `target_biome_props.is_impassable` is true.
+        - If attempting to move into `IMPASSABLE_MOUNTAIN_FACE`, it now checks for `player.inventory.has_climbing_picks` to allow passage. Otherwise, movement is blocked and a notification is shown.
+        - Added `debugAddClimbingPicks()` function to set `player.inventory.has_climbing_picks = true`.
+    - **`src/input/input_handler.lua`**:
+        - Added key handler for "f4" (`DEBUG_ADD_CLIMBING_PICKS_KEY`) to call `GameManager.debugAddClimbingPicks()`.
+- **Strategic Corridor Refinement (Path Wobble):**
+    - **`src/world/world_generation.lua`**:
+        - Introduced `WOBBLE_FREQUENCY` and `MAX_WOBBLE_OFFSET` constants.
+        - Modified the strategic corridor generation to iterate through the base path (from `getLine`).
+        - For segments, with a chance based on `WOBBLE_FREQUENCY`, a random perpendicular offset is applied to the target coordinates.
+        - `getLine` is then used between the last point and the new (potentially wobbled) target point to ensure path connectivity, and these points form the `wobbled_corridor_path` used for carving.
 - **Biome Distribution Tuning:**
     - **`src/config/game_config.lua`**: Modified `minNoise` and `maxNoise` values within the `biomePalette` for several regions in the `WORLD_REGIONS` table to give a broader range for biomes like Jungle, Mountains, and Tundra.
 - **World Generation Overhaul (Phase 3 - Strategic Corridors):**
@@ -80,32 +123,38 @@
 - Enhanced death handling to preserve ability progression.
 
 ### **NEXT STEPS**
-1.  **Test New World Generation System (Regions, Palettes, Chokepoints & Strategic Corridors)**:
+1.  **Test Landmark Navigation Enhancement (Obelisk-Spring)**:
+    *   Verify Obelisks and Hidden Springs are generated according to `OBELISK_PAIRS_COUNT`.
+    *   Confirm visiting an Ancient Obelisk reveals its linked Hidden Spring on the map (sets landmark `discovered = true` and tile `explored = true`).
+    *   Check that the revealed Hidden Spring is now visible on the minimap.
+    *   Check that appropriate notifications are displayed for Obelisk discovery and Spring reveal.
+    *   Verify the new map symbols ("O" for Obelisk, "H" for revealed Spring) appear correctly.
+    *   Assess the gameplay impact of this new mechanic.
+2.  **Test New World Generation System (Regions, Palettes, Chokepoints & Strategic Corridors)**:
     *   Verify distinct regions, correct biome palettes, and Tier 1 starting area.
     *   Observe random chokepoints and the newly carved strategic corridors.
     *   Confirm strategic corridors connect safe hubs through non-safe regions.
     *   Assess visual and gameplay impact of all new world generation features.
     *   Check for errors (e.g., in region center calculation, line drawing, corridor carving).
-2.  **Refine Corridor & Chokepoint Generation (If Necessary)**:
+3.  **Refine Corridor & Chokepoint Generation (If Necessary)**:
     *   Adjust corridor width, pathfinding (e.g., A* for multiple hubs), or corridor "naturalness."
     *   Adjust `CHOKEPOINT_CHANCE` or border difficulty logic.
-3.  **Thoroughly Test Previous Gameplay Changes (Stamina)**:
->>>>>>> REPLACE
+4.  **Thoroughly Test Previous Gameplay Changes (Stamina)**:
     *   Verify that stamina is no longer lost on every move in non-hazardous biomes.
     *   Confirm that stamina is still correctly lost in hazardous biomes (Jungle, Mountains, Tundra) according to their defined rules, now potentially reduced by the Chrono Prism.
     *   Assess overall game balance with these new stamina rules in conjunction with the new world structure.
-4.  **Relic System Review (Post-Stamina Change & Chrono Prism Rework)**:
+5.  **Relic System Review (Post-Stamina Change & Chrono Prism Rework)**:
     *   **Chrono Prism**: Verify its new effect (25% hazard stamina reduction) functions correctly in Jungle and Mountains, and stacks appropriately with Biome Mastery (if applicable).
     *   Test other relic effects (Aether Lens, Void Anchor, Life Spring) to ensure they still function as intended.
-5.  **UI Improvements (General)**:
+6.  **UI Improvements (General)**:
     *   Consider if any UI elements should subtly indicate active relic buffs.
     *   Enhance ability system visuals.
     *   Improve general progression feedback.
-6.  **Content Enhancements**:
+7.  **Content Enhancements**:
    - Add more biome types and environmental effects (especially to support distinct region themes).
    - Expand the contract system with additional quest types.
-   - Add more landmark varieties and special discoveries.
-7.  **Update All Memory Bank Files**: Review and update `progress.md`, `systemPatterns.md`, etc., to reflect these major gameplay changes.
+   - Add more landmark varieties and special discoveries (continue "Enhancing Landmark Significance").
+8.  **Update All Memory Bank Files**: Review and update `progress.md`, `systemPatterns.md`, etc., to reflect these major gameplay changes.
 
 ---
 

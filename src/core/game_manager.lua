@@ -319,6 +319,27 @@ function GameManager.movePlayer(dx, dy)
     local newY = player.y + dy
     
     if newX >= 1 and newX <= world.width and newY >= 1 and newY <= world.height then
+        -- Check for impassable terrain BEFORE moving
+        local target_tile_biome_id = world.tiles[newX][newY].biome.id
+        local target_biome_props = WorldGeneration.BIOMES[target_tile_biome_id]
+
+        if target_biome_props and target_biome_props.is_impassable then
+            -- Check for climbing picks if it's an impassable mountain face
+            if target_tile_biome_id == GameConfig.BIOME_IDS.IMPASSABLE_MOUNTAIN_FACE then
+                if player.inventory and player.inventory.has_climbing_picks then
+                    -- Allow movement
+                else
+                    GameManager.addNotification("Cannot climb this steep mountain face without climbing picks.")
+                    return -- Stop movement
+                end
+            -- Add other impassable checks here later (e.g., for Deep Water and Raft)
+            else
+                -- Generic impassable message if not specifically handled above
+                GameManager.addNotification("Cannot pass here.")
+                return -- Stop movement
+            end
+        end
+
         player.x = newX
         player.y = newY
 
@@ -431,8 +452,35 @@ function GameManager.checkLandmark()
             local newContract = ContractSystem.generateContract()
             table.insert(GameManager.GameState.contracts.active, newContract)
             GameManager.addNotification("New contract acquired from scroll!")
+        elseif currentTile.landmark.type == "Ancient Obelisk" then
+            player.inventory = player.inventory or {}
+            player.inventory.relic_fragment = (player.inventory.relic_fragment or 0) + 1 -- Standard reward
+            GameManager.addNotification("Discovered an Ancient Obelisk! Gained 1 relic fragment.")
+
+            if currentTile.landmark.reveals_landmark_at then
+                local spring_coords = currentTile.landmark.reveals_landmark_at
+                if GameManager.GameState.world.tiles[spring_coords.x] and GameManager.GameState.world.tiles[spring_coords.x][spring_coords.y] then
+                    local spring_tile = GameManager.GameState.world.tiles[spring_coords.x][spring_coords.y]
+                    if spring_tile.landmark and spring_tile.landmark.type == "Hidden Spring" then
+                        if not spring_tile.landmark.discovered then
+                            spring_tile.landmark.discovered = true
+                            spring_tile.explored = true -- Ensure the tile itself is marked explored for minimap visibility
+                            -- We might want a different flag like 'pinpointed' or 'revealed_on_map'
+                            -- For now, 'discovered' means it will show up on the map.
+                            GameManager.addNotification("The Obelisk hums, revealing the location of a Hidden Spring on your map!")
+                        end
+                    end
+                end
+            end
+        elseif currentTile.landmark.type == "Hidden Spring" then
+            -- Player has reached the Hidden Spring
+            player.inventory = player.inventory or {}
+            -- Give a slightly better reward for finding a hidden spring
+            local spring_reward = math.random(2,3)
+            player.inventory.relic_fragment = (player.inventory.relic_fragment or 0) + spring_reward
+            GameManager.addNotification("You found the Hidden Spring! Gained " .. spring_reward .. " relic fragments.")
         else
-            -- Add reward for regular landmark
+            -- Add reward for other regular landmarks
             player.inventory = player.inventory or {}
             player.inventory.relic_fragment = (player.inventory.relic_fragment or 0) + 1
             GameManager.addNotification("Discovered " .. currentTile.landmark.type .. "! Gained 1 relic fragment.")
@@ -546,6 +594,14 @@ function GameManager.attemptRelicReconstruction()
         GameManager.addNotification("Not enough fragments to reconstruct any available relic.")
     end
     return false
+end
+
+-- Debug function to add climbing picks to player inventory
+function GameManager.debugAddClimbingPicks()
+    local player = GameManager.GameState.player
+    player.inventory = player.inventory or {} -- Ensure inventory table exists
+    player.inventory.has_climbing_picks = true
+    GameManager.addNotification("Debug: Climbing Picks added to inventory.")
 end
 
 -- Debug function to toggle full map reveal

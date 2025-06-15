@@ -40,6 +40,9 @@ function InputHandler.handleKeyPress(key)
     -- Debug: Toggle map reveal
     elseif key == GameConfig.DEBUG.REVEAL_MAP_KEY then
         GameManager.debugToggleRevealMap()
+    -- Debug: Add Climbing Picks
+    elseif key == GameConfig.DEBUG.DEBUG_ADD_CLIMBING_PICKS_KEY then
+        GameManager.debugAddClimbingPicks()
     -- Attempt Relic Reconstruction
     elseif key == GameConfig.ACTIONS.RECONSTRUCT_ATTEMPT_KEY then
         GameManager.attemptRelicReconstruction()

@@ -11,6 +11,7 @@ local GameConfig = {
         VIEW_RADIUS = 10,
         EXPLORE_RADIUS = 3,
         LANDMARK_COUNT = 20,
+        OBELISK_PAIRS_COUNT = 2, -- Number of Ancient Obelisk / Hidden Spring pairs
         LANDMARK_SCROLL_CHANCE = 0.25
     },
 
@@ -19,7 +20,8 @@ local GameConfig = {
         VEILED_JUNGLE = 2,
         STORMSPIRE_PEAKS = 3, -- Mountains
         DESERT = 4,
-        TUNDRA = 5
+        TUNDRA = 5,
+        IMPASSABLE_MOUNTAIN_FACE = 6
         -- Add new biome IDs here as they are created
     },
 
@@ -96,7 +98,8 @@ local GameConfig = {
         ADD_FRAGMENTS_KEY = "f1", -- Key to press to add relic fragments
         FRAGMENT_ADD_AMOUNT = 1,  -- Number of each fragment type to add
         RECONSTRUCT_RELIC_KEY = "f2", -- Key to mark the next available relic as reconstructed
-        REVEAL_MAP_KEY = "f3" -- Key to toggle full map reveal
+        REVEAL_MAP_KEY = "f3", -- Key to toggle full map reveal
+        DEBUG_ADD_CLIMBING_PICKS_KEY = "f4" -- Key to add climbing picks
     },
 
     -- Gameplay actions

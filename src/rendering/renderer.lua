@@ -71,11 +71,16 @@ function Renderer.renderWorld()
                 -- Draw symbol for discovered but unvisited landmarks
                 if tile.landmark and tile.landmark.discovered and not tile.landmark.visited then
                     love.graphics.setColor(1, 1, 1)  -- White
+                    local symbol = "?"
                     if tile.landmark.type == "Contract_Scroll" then
-                        love.graphics.print("S", screenX + tileSize/2 - 3, screenY + tileSize/2 - 7)
-                    else
-                        love.graphics.print("?", screenX + tileSize/2 - 3, screenY + tileSize/2 - 7)
+                        symbol = "S"
+                    elseif tile.landmark.type == "Ancient Obelisk" then
+                        symbol = "O"
+                    elseif tile.landmark.type == "Hidden Spring" then
+                        -- This will show if it's discovered (e.g., by an Obelisk) but not yet visited.
+                        symbol = "H" 
                     end
+                    love.graphics.print(symbol, screenX + tileSize/2 - (love.graphics.getFont():getWidth(symbol)/2), screenY + tileSize/2 - (love.graphics.getFont():getHeight()/2))
                 end
             else
                 -- Unexplored tiles are black
@@ -144,11 +149,16 @@ function Renderer.renderUI()
                     love.graphics.print(fragment_type .. " fragment: " .. fragment_count, 10, yOffset)
                     yOffset = yOffset + 20
                 end
+            elseif type(value) == "boolean" then
+                local displayValue = value and "Yes" or "No"
+                love.graphics.print(item .. ": " .. displayValue, 10, yOffset)
+                yOffset = yOffset + 20
             else
-                love.graphics.print(item .. ": " .. value, 10, yOffset)
+                love.graphics.print(item .. ": " .. tostring(value), 10, yOffset) -- Use tostring for other types
                 yOffset = yOffset + 20
             end
         end
+        -- Removed accidental diff marker
         
         -- Render abilities
         if gameState.player.abilities then
