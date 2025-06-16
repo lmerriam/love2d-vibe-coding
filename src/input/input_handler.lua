@@ -12,15 +12,31 @@ function InputHandler.handleKeyPress(key)
     if key == "escape" then
         love.event.quit()
     
-    -- Movement keys
+    -- Movement keys (context-sensitive: player movement in zoomed mode, minimap navigation in minimap mode)
     elseif key == "up" then
-        GameManager.movePlayer(0, -1)
+        if GameManager.GameState.viewMode == "minimap" then
+            GameManager.moveMinimapCamera(0, -10)
+        else
+            GameManager.movePlayer(0, -1)
+        end
     elseif key == "down" then
-        GameManager.movePlayer(0, 1)
+        if GameManager.GameState.viewMode == "minimap" then
+            GameManager.moveMinimapCamera(0, 10)
+        else
+            GameManager.movePlayer(0, 1)
+        end
     elseif key == "left" then
-        GameManager.movePlayer(-1, 0)
+        if GameManager.GameState.viewMode == "minimap" then
+            GameManager.moveMinimapCamera(-10, 0)
+        else
+            GameManager.movePlayer(-1, 0)
+        end
     elseif key == "right" then
-        GameManager.movePlayer(1, 0)
+        if GameManager.GameState.viewMode == "minimap" then
+            GameManager.moveMinimapCamera(10, 0)
+        else
+            GameManager.movePlayer(1, 0)
+        end
     
     -- Toggle map view mode
     elseif key == "m" then

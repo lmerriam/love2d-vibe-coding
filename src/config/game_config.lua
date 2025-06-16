@@ -4,15 +4,15 @@
 local GameConfig = {
     -- World generation settings
     WORLD = {
-        WIDTH = 100,
-        HEIGHT = 100,
+        WIDTH = 200,
+        HEIGHT = 200,
         TILE_SIZE = 32,
         MINI_TILE_SIZE = 6,
         VIEW_RADIUS = 10,
         EXPLORE_RADIUS = 3,
-        LANDMARK_COUNT = 20,
-        OBELISK_PAIRS_COUNT = 2, -- Number of Ancient Obelisk / Hidden Spring pairs
-        SEER_CACHE_PAIRS_COUNT = 2, -- Number of Seer's Totem / Hidden Cache pairs
+        LANDMARK_COUNT = 40, -- Doubled for larger world
+        OBELISK_PAIRS_COUNT = 4, -- Doubled for larger world
+        SEER_CACHE_PAIRS_COUNT = 4, -- Doubled for larger world
         LANDMARK_SCROLL_CHANCE = 0.25
     },
 
@@ -22,7 +22,8 @@ local GameConfig = {
         STORMSPIRE_PEAKS = 3, -- Mountains
         DESERT = 4,
         TUNDRA = 5,
-        IMPASSABLE_MOUNTAIN_FACE = 6
+        IMPASSABLE_MOUNTAIN_FACE = 6,
+        MST_PATH = 7 -- Distinct path tiles created by MST system
         -- Add new biome IDs here as they are created
     },
 
@@ -63,8 +64,8 @@ local GameConfig = {
     
     -- Player settings
     PLAYER = {
-        STARTING_X = 1,
-        STARTING_Y = 1,
+        STARTING_X = nil, -- Will be set randomly during world generation
+        STARTING_Y = nil, -- Will be set randomly during world generation
         STARTING_STAMINA = 100,
         COLOR = {1, 0, 0} -- Red
     },
@@ -127,6 +128,60 @@ local GameConfig = {
             LEVER_COUNT = 1 -- Number of levers in the world that can activate this
         }
         -- Can add more passage configurations here later if needed
+    },
+
+    -- MST Path System Configuration
+    MST_PATH_SYSTEM = {
+        ENABLED = true, -- Enable/disable MST path generation
+        TERRAIN_PENALTIES = {
+            [1] = 1.0, -- RUSTED_OASIS (Plains) - no penalty
+            [2] = 1.5, -- VEILED_JUNGLE - moderate penalty
+            [3] = 2.0, -- STORMSPIRE_PEAKS (Mountains) - high penalty
+            [4] = 1.3, -- DESERT - light penalty
+            [5] = 1.8, -- TUNDRA - high penalty
+            [6] = 5.0  -- IMPASSABLE_MOUNTAIN_FACE - very high penalty (avoid if possible)
+        },
+        ELEVATION_PENALTY_SCALE = 3.0, -- Multiplier for elevation-based path penalties
+        REGION_CROSSING_BONUS = 0.8, -- Reduce weight when path crosses regions (encourages connectivity)
+        INCLUDE_LANDMARKS_AS_NODES = true, -- Include major landmarks as graph nodes
+        MAJOR_LANDMARK_TYPES = { -- Landmark types that become graph nodes
+            "Ancient Ruins",
+            "Mystic Shrine", 
+            "Ancient Obelisk",
+            "Strange Monolith",
+            "Crystal Formation",
+            "Abandoned Camp",
+            "Seer's Totem"
+        },
+        ADD_STRATEGIC_NODES = true, -- Add additional strategic nodes for better connectivity
+        STRATEGIC_NODES_COUNT = 6, -- Number of additional strategic nodes to place
+        MIN_NODE_DISTANCE = 15, -- Minimum distance between nodes to ensure spread
+        
+        -- Variable Width System
+        BASE_CORRIDOR_WIDTH = 1, -- Base width for most path segments
+        NODE_IMPORTANCE_WIDTHS = { -- Width based on node type
+            start = 2,           -- Player starting area - wider
+            region_center = 2,   -- Region centers - wider
+            landmark = 1,        -- Landmarks - normal
+            strategic = 1        -- Strategic nodes - normal
+        },
+        TERRAIN_WIDTH_MODIFIERS = { -- Width adjustments based on terrain
+            [1] = 1.0, -- Plains - normal width
+            [2] = 0.7, -- Jungle - narrower (harder to clear)
+            [3] = 0.5, -- Mountains - much narrower (difficult terrain)
+            [4] = 1.2, -- Desert - slightly wider (easy to traverse)
+            [5] = 0.6, -- Tundra - narrower (harsh conditions)
+            [6] = 0.0  -- Impassable - should be avoided anyway
+        },
+        JUNCTION_EXPANSION_RADIUS = 3, -- Extra width around major junctions
+        
+        -- Organic Path Generation
+        PATH_BIOME_ID = 7, -- MST_PATH - distinct biome for paths
+        MEANDER_FREQUENCY = 0.3, -- Chance to add gentle curves (replaces simple wobble)
+        MEANDER_STRENGTH = 2, -- How much paths can curve (in tiles)
+        CURVE_SMOOTHING = 0.7, -- How much to smooth sharp turns (0=none, 1=maximum)
+        VALLEY_SEEKING_STRENGTH = 2.0, -- How much paths prefer lower elevations
+        NOISE_SCALE_ELEVATION = 0.03 -- Scale for elevation noise generation
     },
 
     -- Landmark specific configurations

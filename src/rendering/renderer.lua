@@ -35,11 +35,22 @@ function Renderer.renderWorld()
         startY = gameState.camera.y - viewSize
         endY = gameState.camera.y + viewSize
     else
-        -- Show entire world for minimap
-        startX = 1
-        endX = gameState.world.width
-        startY = 1
-        endY = gameState.world.height
+        -- Minimap: show navigable portion of world
+        local tilesPerScreenX = math.floor(screenWidth / tileSize)
+        local tilesPerScreenY = math.floor(screenHeight / tileSize)
+        
+        startX = math.max(1, gameState.minimap_camera.x)
+        endX = math.min(gameState.world.width, startX + tilesPerScreenX - 1)
+        startY = math.max(1, gameState.minimap_camera.y)
+        endY = math.min(gameState.world.height, startY + tilesPerScreenY - 1)
+        
+        -- Adjust startX/startY if we hit world boundaries
+        if endX == gameState.world.width then
+            startX = math.max(1, endX - tilesPerScreenX + 1)
+        end
+        if endY == gameState.world.height then
+            startY = math.max(1, endY - tilesPerScreenY + 1)
+        end
     end
     
     -- Render world grid
@@ -58,9 +69,9 @@ function Renderer.renderWorld()
                 screenX = (x - startX) * tileSize + (screenWidth - (endX - startX + 1) * tileSize) / 2
                 screenY = (y - startY) * tileSize + (screenHeight - (endY - startY + 1) * tileSize) / 2
             else
-                -- Minimap view - tile at (0,0) origin
-                screenX = (x-1)*tileSize
-                screenY = (y-1)*tileSize
+                -- Minimap view - position relative to minimap camera
+                screenX = (x - startX) * tileSize
+                screenY = (y - startY) * tileSize
             end
             
             if tile.explored then
@@ -121,6 +132,26 @@ function Renderer.renderPlayer()
     local tileSize = gameState.viewMode == "zoomed" and GameConfig.WORLD.TILE_SIZE or GameConfig.WORLD.MINI_TILE_SIZE
     local viewSize = GameConfig.WORLD.VIEW_RADIUS
     
+    -- Calculate visible area for minimap mode (same logic as in renderWorld)
+    local startX, startY
+    if gameState.viewMode == "minimap" then
+        local tilesPerScreenX = math.floor(screenWidth / tileSize)
+        local tilesPerScreenY = math.floor(screenHeight / tileSize)
+        
+        startX = math.max(1, gameState.minimap_camera.x)
+        startY = math.max(1, gameState.minimap_camera.y)
+        local endX = math.min(gameState.world.width, startX + tilesPerScreenX - 1)
+        local endY = math.min(gameState.world.height, startY + tilesPerScreenY - 1)
+        
+        -- Adjust startX/startY if we hit world boundaries
+        if endX == gameState.world.width then
+            startX = math.max(1, endX - tilesPerScreenX + 1)
+        end
+        if endY == gameState.world.height then
+            startY = math.max(1, endY - tilesPerScreenY + 1)
+        end
+    end
+    
     -- Calculate player screen position
     local playerScreenX, playerScreenY
     
@@ -131,14 +162,19 @@ function Renderer.renderPlayer()
         playerScreenX = screenWidth/2 + playerOffsetX - tileSize/2
         playerScreenY = screenHeight/2 + playerOffsetY - tileSize/2
     else
-        -- In minimap view, position player in the tile
-        playerScreenX = (gameState.player.x-1)*tileSize
-        playerScreenY = (gameState.player.y-1)*tileSize
+        -- In minimap view, position player relative to minimap camera
+        playerScreenX = (gameState.player.x - startX) * tileSize
+        playerScreenY = (gameState.player.y - startY) * tileSize
     end
     
-    -- Draw player at center of tile
-    love.graphics.setColor(unpack(GameConfig.PLAYER.COLOR))
-    love.graphics.circle("fill", playerScreenX + tileSize/2, playerScreenY + tileSize/2, tileSize/2)
+    -- Only draw player if they're visible on screen
+    if gameState.viewMode == "zoomed" or 
+       (gameState.player.x >= startX and gameState.player.x <= startX + math.floor(screenWidth / tileSize) and
+        gameState.player.y >= startY and gameState.player.y <= startY + math.floor(screenHeight / tileSize)) then
+        -- Draw player at center of tile
+        love.graphics.setColor(unpack(GameConfig.PLAYER.COLOR))
+        love.graphics.circle("fill", playerScreenX + tileSize/2, playerScreenY + tileSize/2, tileSize/2)
+    end
 end
 
 -- Render the UI

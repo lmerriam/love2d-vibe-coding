@@ -35,6 +35,10 @@ GameManager.GameState = {
         x = 1,
         y = 1
     },
+    minimap_camera = {
+        x = 0,
+        y = 0
+    },
     contracts = {
         active = {},
         completed = 0
@@ -70,6 +74,10 @@ function GameManager.initialize()
     GameManager.GameState.world = WorldGeneration.generateWorld(
         GameConfig.WORLD.WIDTH, GameConfig.WORLD.HEIGHT
     )
+    
+    -- Update player position after world generation (starting position is set during generation)
+    GameManager.GameState.player.x = GameConfig.PLAYER.STARTING_X
+    GameManager.GameState.player.y = GameConfig.PLAYER.STARTING_Y
     
     -- Apply start-of-run ability effects
     AbilitySystem.applyStartEffects(GameManager.GameState.player, GameManager.GameState.world)
@@ -191,8 +199,8 @@ function GameManager.onPlayerDeath()
     end
 
     GameManager.GameState.player = {
-        x = GameConfig.PLAYER.STARTING_X,
-        y = GameConfig.PLAYER.STARTING_Y,
+        x = GameConfig.PLAYER.STARTING_X, -- Set after world generation
+        y = GameConfig.PLAYER.STARTING_Y, -- Set after world generation
         stamina = startingStamina, -- Apply potential Life Spring boost
         inventory = {
             -- Restore relic fragments from meta
@@ -571,6 +579,17 @@ function GameManager.toggleViewMode()
     else
         GameManager.GameState.viewMode = "zoomed"
     end
+end
+
+-- Move minimap camera
+function GameManager.moveMinimapCamera(dx, dy)
+    local world = GameManager.GameState.world
+    if not world then return end
+    
+    GameManager.GameState.minimap_camera.x = math.max(0, 
+        math.min(GameManager.GameState.minimap_camera.x + dx, world.width))
+    GameManager.GameState.minimap_camera.y = math.max(0, 
+        math.min(GameManager.GameState.minimap_camera.y + dy, world.height))
 end
 
 -- Debug function to add relic fragments

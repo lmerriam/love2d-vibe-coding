@@ -44,6 +44,13 @@ WorldGeneration.BIOMES = {
         traversal_difficulty = 99, -- Effectively impassable
         hazard = "None",
         is_impassable = true
+    },
+    [7] = {
+        name = "Ancient Path",
+        color = {160, 140, 80}, -- Sandy/golden brown for visibility
+        traversal_difficulty = 1,
+        hazard = "None",
+        is_impassable = false
     }
 }
 
@@ -108,10 +115,8 @@ function WorldGeneration.generateWorld(width, height)
         end
     end
 
-    -- Ensure starting area is Tier 1
-    local start_x = GameConfig.PLAYER.STARTING_X
-    local start_y = GameConfig.PLAYER.STARTING_Y
-    local start_area_radius = 10 -- How far around the start to force Tier 1
+    -- Find a random safe starting location in a Tier 1 region
+    local start_x, start_y = nil, nil
     local tier1_region_id = -1
     for i, region_config in ipairs(GameConfig.WORLD_REGIONS) do
         if region_config.difficultyTier == 1 then
@@ -120,6 +125,38 @@ function WorldGeneration.generateWorld(width, height)
         end
     end
 
+    -- Find potential Tier 1 starting locations
+    local potential_starts = {}
+    for x = 1, width do
+        for y = 1, height do
+            if region_map[x][y] == tier1_region_id then
+                table.insert(potential_starts, {x = x, y = y})
+            end
+        end
+    end
+
+    -- Pick a random starting location from Tier 1 region
+    if #potential_starts > 0 then
+        local chosen_start = potential_starts[math.random(1, #potential_starts)]
+        start_x = chosen_start.x
+        start_y = chosen_start.y
+        
+        -- Set the player starting position in config
+        GameConfig.PLAYER.STARTING_X = start_x
+        GameConfig.PLAYER.STARTING_Y = start_y
+        
+        print("Random starting location set to: " .. start_x .. ", " .. start_y)
+    else
+        -- Fallback to center if no Tier 1 region found
+        start_x = math.floor(width / 2)
+        start_y = math.floor(height / 2)
+        GameConfig.PLAYER.STARTING_X = start_x
+        GameConfig.PLAYER.STARTING_Y = start_y
+        print("Fallback starting location set to center: " .. start_x .. ", " .. start_y)
+    end
+
+    -- Ensure starting area remains Tier 1
+    local start_area_radius = 10 -- How far around the start to force Tier 1
     if tier1_region_id ~= -1 then
         for x = math.max(1, start_x - start_area_radius), math.min(width, start_x + start_area_radius) do
             for y = math.max(1, start_y - start_area_radius), math.min(height, start_y + start_area_radius) do
@@ -195,117 +232,335 @@ function WorldGeneration.generateWorld(width, height)
             if e2 > -dy then
                 err = err - dy
                 x1 = x1 + sx
+                end
             end
-            if e2 < dx then
-                err = err + dx
-                y1 = y1 + sy
-            end
+            end -- Close the if statement for valid edge check
+        end
+    end
         end
         return line_tiles
     end
 
-    -- Second pass: Strategic Corridor Carving
-    local PATH_BIOME_ID = GameConfig.BIOME_IDS.RUSTED_OASIS
-    local safe_hubs = {}
-    local start_hub_coords = nil
-    local target_hub_coords = nil
-
-    -- Find center of regions marked as safe passage targets
-    local region_centers = {}
-    for _, region_config in ipairs(GameConfig.WORLD_REGIONS) do
-        local count = 0
-        local sum_x, sum_y = 0, 0
-        for tx = 1, width do
-            for ty = 1, height do
-                if region_map[tx][ty] == region_config.id then
-                    sum_x = sum_x + tx
-                    sum_y = sum_y + ty
-                    count = count + 1
-                end
-            end
-        end
-        if count > 0 then
-            region_centers[region_config.id] = {
-                x = math.floor(sum_x / count),
-                y = math.floor(sum_y / count),
-                config = region_config
-            }
-            if region_config.isSafePassageTarget then
-                table.insert(safe_hubs, region_centers[region_config.id])
-            end
-        end
-    end
-    
-    -- Identify start hub (player's region) and one other target hub
-    local player_start_region_id = region_map[GameConfig.PLAYER.STARTING_X][GameConfig.PLAYER.STARTING_Y]
-    if region_centers[player_start_region_id] and region_centers[player_start_region_id].config.isSafePassageTarget then
-        start_hub_coords = {x = region_centers[player_start_region_id].x, y = region_centers[player_start_region_id].y}
-    end
-
-    if start_hub_coords then
-        for _, hub in ipairs(safe_hubs) do
-            if hub.config.id ~= player_start_region_id then -- Find a *different* safe hub
-                target_hub_coords = {x = hub.x, y = hub.y}
-                break
-            end
-        end
-    end
-    
-    if start_hub_coords and target_hub_coords then
-        local base_corridor_path = getLine(start_hub_coords.x, start_hub_coords.y, target_hub_coords.x, target_hub_coords.y)
-        local corridor_width = 1 -- 1 tile on each side, so 3 wide total
+    -- Second pass: MST-based Path Generation
+    local function generateMSTNodes(world, region_map, region_centers)
+        local nodes = {}
+        local node_id = 1
         
-        local WOBBLE_FREQUENCY = 0.2 -- Apply wobble to 20% of path segments
-        local MAX_WOBBLE_OFFSET = 2  -- Max perpendicular offset
-
-        local wobbled_corridor_path = {}
-        local last_x, last_y = base_corridor_path[1].x, base_corridor_path[1].y
-        table.insert(wobbled_corridor_path, {x = last_x, y = last_y})
-
-        for i = 2, #base_corridor_path do
-            local current_p_tile = base_corridor_path[i]
-            local next_x, next_y = current_p_tile.x, current_p_tile.y
-
-            if math.random() < WOBBLE_FREQUENCY then
-                local dx_path = next_x - last_x
-                local dy_path = next_y - last_y
-                local wobble_offset_val = math.random(-MAX_WOBBLE_OFFSET, MAX_WOBBLE_OFFSET)
-                
-                if dx_path == 0 then -- Vertical segment, wobble horizontally
-                    next_x = math.max(1, math.min(width, next_x + wobble_offset_val))
-                elseif dy_path == 0 then -- Horizontal segment, wobble vertically
-                    next_y = math.max(1, math.min(height, next_y + wobble_offset_val))
-                else -- Diagonal segment, choose one axis to wobble or apply more complex logic
-                    if math.random() < 0.5 then
-                        next_x = math.max(1, math.min(width, next_x + wobble_offset_val))
-                    else
-                        next_y = math.max(1, math.min(height, next_y + wobble_offset_val))
+        -- Add player starting position as the first node (now dynamically set)
+        table.insert(nodes, {
+            id = node_id,
+            x = GameConfig.PLAYER.STARTING_X,
+            y = GameConfig.PLAYER.STARTING_Y,
+            type = "start",
+            region_id = region_map[GameConfig.PLAYER.STARTING_X][GameConfig.PLAYER.STARTING_Y]
+        })
+        node_id = node_id + 1
+        
+        -- Add region centers as nodes
+        for region_id, center in pairs(region_centers) do
+            table.insert(nodes, {
+                id = node_id,
+                x = center.x,
+                y = center.y,
+                type = "region_center",
+                region_id = region_id,
+                config = center.config
+            })
+            node_id = node_id + 1
+        end
+        
+        -- Add major landmarks as nodes if enabled
+        if GameConfig.MST_PATH_SYSTEM.INCLUDE_LANDMARKS_AS_NODES then
+            for x = 1, world.width do
+                for y = 1, world.height do
+                    local tile = world.tiles[x][y]
+                    if tile.landmark then
+                        local is_major = false
+                        for _, major_type in ipairs(GameConfig.MST_PATH_SYSTEM.MAJOR_LANDMARK_TYPES) do
+                            if tile.landmark.type == major_type then
+                                is_major = true
+                                break
+                            end
+                        end
+                        
+                        if is_major then
+                            table.insert(nodes, {
+                                id = node_id,
+                                x = x,
+                                y = y,
+                                type = "landmark",
+                                landmark_type = tile.landmark.type,
+                                region_id = region_map[x][y]
+                            })
+                            node_id = node_id + 1
+                        end
                     end
                 end
             end
-            -- To ensure connectivity with wobble, we might need to draw lines between wobbled points
-            -- For simplicity now, just add the (potentially) wobbled point.
-            -- A more robust approach would be to getLine between last_wobbled_point and current_wobbled_point.
-            -- However, for small wobbles, direct addition might be okay.
-            local intermediate_points = getLine(last_x, last_y, next_x, next_y)
-            for j = 2, #intermediate_points do -- Start from 2nd point as last_x, last_y is already added
-                table.insert(wobbled_corridor_path, intermediate_points[j])
-            end
-            last_x, last_y = next_x, next_y
         end
-
-        for _, p_tile in ipairs(wobbled_corridor_path) do
-            for dx_brush = -corridor_width, corridor_width do
-                for dy_brush = -corridor_width, corridor_width do
-                    -- Only carve a straight line for now, not a full square brush (using + shape brush)
-                    if not (dx_brush ~= 0 and dy_brush ~= 0) then 
-                        local carve_x, carve_y = p_tile.x + dx_brush, p_tile.y + dy_brush
-                        if WorldGeneration.isInBounds(world, carve_x, carve_y) then
-                            local tile_region_id = region_map[carve_x][carve_y]
-                            local tile_region_config = region_centers[tile_region_id] and region_centers[tile_region_id].config or nil
-
-                            -- Carve if the tile is in a non-safe-passage-target region
-                            if tile_region_config and not tile_region_config.isSafePassageTarget then
+        
+        -- Add strategic nodes for better connectivity if enabled
+        if GameConfig.MST_PATH_SYSTEM.ADD_STRATEGIC_NODES then
+            local strategic_count = GameConfig.MST_PATH_SYSTEM.STRATEGIC_NODES_COUNT
+            local min_distance = GameConfig.MST_PATH_SYSTEM.MIN_NODE_DISTANCE
+            local attempts = 0
+            local max_attempts = world.width * world.height / 10
+            
+            local function isValidStrategicPosition(x, y, existing_nodes)
+                -- Check minimum distance from existing nodes
+                for _, node in ipairs(existing_nodes) do
+                    local distance = math.sqrt((x - node.x)^2 + (y - node.y)^2)
+                    if distance < min_distance then
+                        return false
+                    end
+                end
+                
+                -- Prefer positions that are not impassable
+                local tile = world.tiles[x][y]
+                if tile.biome.is_impassable then
+                    return false
+                end
+                
+                return true
+            end
+            
+            for i = 1, strategic_count do
+                local placed = false
+                local attempt_count = 0
+                
+                while not placed and attempt_count < max_attempts do
+                    local x = math.random(math.floor(world.width * 0.1), math.floor(world.width * 0.9))
+                    local y = math.random(math.floor(world.height * 0.1), math.floor(world.height * 0.9))
+                    
+                    if isValidStrategicPosition(x, y, nodes) then
+                        table.insert(nodes, {
+                            id = node_id,
+                            x = x,
+                            y = y,
+                            type = "strategic",
+                            region_id = region_map[x][y]
+                        })
+                        node_id = node_id + 1
+                        placed = true
+                    end
+                    
+                    attempt_count = attempt_count + 1
+                end
+                
+                if not placed then
+                    print("Warning: Could not place strategic node " .. i .. " after " .. max_attempts .. " attempts")
+                end
+            end
+        end
+        
+        return nodes
+    end
+    
+    local function calculatePathWeight(world, region_map, elevation_map, x1, y1, x2, y2)
+        local distance = math.sqrt((x2 - x1)^2 + (y2 - y1)^2)
+        local weight = distance
+        
+        -- Sample points along the path to calculate terrain penalty
+        local sample_count = math.max(5, math.floor(distance / 3)) -- More samples for better accuracy
+        local terrain_penalty = 0
+        local elevation_penalty = 0
+        local region_crossings = 0
+        local last_region = nil
+        local last_elevation = nil
+        
+        for i = 0, sample_count do
+            local t = i / sample_count
+            local sample_x = math.floor(x1 + t * (x2 - x1) + 0.5)
+            local sample_y = math.floor(y1 + t * (y2 - y1) + 0.5)
+            
+            if WorldGeneration.isInBounds(world, sample_x, sample_y) then
+                local tile = world.tiles[sample_x][sample_y]
+                local biome_id = tile.biome.id
+                local region_id = region_map[sample_x][sample_y]
+                local elevation = elevation_map[sample_x][sample_y]
+                
+                -- Apply terrain penalty
+                local penalty = GameConfig.MST_PATH_SYSTEM.TERRAIN_PENALTIES[biome_id] or 1.0
+                terrain_penalty = terrain_penalty + penalty
+                
+                -- Apply elevation-based penalties
+                if last_elevation then
+                    local elevation_change = math.abs(elevation - last_elevation)
+                    -- Penalize steep grades heavily (ancient paths prefer gentle slopes)
+                    local grade_penalty = elevation_change * GameConfig.MST_PATH_SYSTEM.ELEVATION_PENALTY_SCALE
+                    elevation_penalty = elevation_penalty + grade_penalty
+                    
+                    -- Bonus for following valleys (preferring lower elevations)
+                    local valley_bonus = (1.0 - elevation) * GameConfig.MST_PATH_SYSTEM.VALLEY_SEEKING_STRENGTH
+                    elevation_penalty = elevation_penalty - valley_bonus
+                end
+                last_elevation = elevation
+                
+                -- Count region crossings
+                if last_region and last_region ~= region_id then
+                    region_crossings = region_crossings + 1
+                end
+                last_region = region_id
+            end
+        end
+        
+        -- Apply terrain penalty (average across samples)
+        weight = weight * (terrain_penalty / (sample_count + 1))
+        
+        -- Apply elevation penalty
+        weight = weight + (elevation_penalty / (sample_count + 1))
+        
+        -- Apply region crossing bonus (encourages inter-region connectivity)
+        if region_crossings > 0 then
+            weight = weight * GameConfig.MST_PATH_SYSTEM.REGION_CROSSING_BONUS
+        end
+        
+        return weight
+    end
+    
+    local function buildMinimumSpanningTree(nodes, world, region_map, elevation_map)
+        if #nodes <= 1 then return {} end
+        
+        local mst_edges = {}
+        local in_mst = {}
+        local edge_costs = {}
+        
+        -- Start with the first node (player start)
+        in_mst[1] = true
+        
+        -- Initialize edge costs from first node to all others
+        for i = 2, #nodes do
+            local weight = calculatePathWeight(world, region_map, elevation_map,
+                nodes[1].x, nodes[1].y, nodes[i].x, nodes[i].y)
+            edge_costs[i] = { cost = weight, from_node = 1, to_node = i }
+        end
+        
+        -- Prim's algorithm: Add nodes one by one
+        for _ = 1, #nodes - 1 do
+            -- Find minimum cost edge to a node not in MST
+            local min_cost = math.huge
+            local min_edge = nil
+            
+            for i = 2, #nodes do
+                if not in_mst[i] and edge_costs[i] and edge_costs[i].cost < min_cost then
+                    min_cost = edge_costs[i].cost
+                    min_edge = edge_costs[i]
+                end
+            end
+            
+            if min_edge then
+                -- Add this edge to MST
+                table.insert(mst_edges, {
+                    from = nodes[min_edge.from_node],
+                    to = nodes[min_edge.to_node],
+                    cost = min_edge.cost
+                })
+                
+                -- Add the new node to MST
+                in_mst[min_edge.to_node] = true
+                
+                -- Update edge costs: check if new node provides cheaper paths to remaining nodes
+                for i = 2, #nodes do
+                    if not in_mst[i] then
+                        local weight = calculatePathWeight(world, region_map, elevation_map,
+                            nodes[min_edge.to_node].x, nodes[min_edge.to_node].y, 
+                            nodes[i].x, nodes[i].y)
+                        
+                        if not edge_costs[i] or weight < edge_costs[i].cost then
+                            edge_costs[i] = { cost = weight, from_node = min_edge.to_node, to_node = i }
+                        end
+                    end
+                end
+            end
+        end
+        
+        return mst_edges
+    end
+    
+    local function carveMSTCorridors(world, mst_edges, elevation_map)
+        local PATH_BIOME_ID = GameConfig.MST_PATH_SYSTEM.PATH_BIOME_ID
+        local base_width = GameConfig.MST_PATH_SYSTEM.BASE_CORRIDOR_WIDTH
+        local meander_frequency = GameConfig.MST_PATH_SYSTEM.MEANDER_FREQUENCY
+        local meander_strength = GameConfig.MST_PATH_SYSTEM.MEANDER_STRENGTH
+        
+        for _, edge in ipairs(mst_edges) do
+            -- Safety check: ensure edge has valid from and to nodes
+            if edge.from and edge.to and edge.from.x and edge.from.y and edge.to.x and edge.to.y then
+            
+            -- Calculate dynamic width based on node importance (with safety checks)
+            local from_type = edge.from.type or "strategic"
+            local to_type = edge.to.type or "strategic"
+            local from_width = GameConfig.MST_PATH_SYSTEM.NODE_IMPORTANCE_WIDTHS[from_type] or base_width
+            local to_width = GameConfig.MST_PATH_SYSTEM.NODE_IMPORTANCE_WIDTHS[to_type] or base_width
+            
+            local base_path = getLine(edge.from.x, edge.from.y, edge.to.x, edge.to.y)
+            
+            -- Create organic meander using noise-based curves instead of random wobble
+            local meandered_path = {}
+            Perlin.seed(math.random(1, 10000)) -- Random seed for this path's meander
+            
+            for i, path_point in ipairs(base_path) do
+                local t = (i - 1) / (#base_path - 1) -- Progression along path (0 to 1)
+                local meander_x = path_point.x
+                local meander_y = path_point.y
+                
+                if math.random() < meander_frequency and i > 1 and i < #base_path then
+                    -- Use noise for smoother, more natural curves
+                    local noise_x = Perlin.normalized(i * 0.1, 0, 1, 0.5)
+                    local noise_y = Perlin.normalized(0, i * 0.1, 1, 0.5)
+                    
+                    -- Apply meander perpendicular to path direction
+                    local prev_point = base_path[i-1]
+                    local dx = path_point.x - prev_point.x
+                    local dy = path_point.y - prev_point.y
+                    local length = math.sqrt(dx*dx + dy*dy)
+                    
+                    if length > 0 then
+                        -- Perpendicular vector for natural meandering
+                        local perp_x = -dy / length
+                        local perp_y = dx / length
+                        
+                        local meander_offset = (noise_x - 0.5) * meander_strength
+                        meander_x = math.max(1, math.min(world.width, path_point.x + perp_x * meander_offset))
+                        meander_y = math.max(1, math.min(world.height, path_point.y + perp_y * meander_offset))
+                    end
+                end
+                
+                table.insert(meandered_path, {x = meander_x, y = meander_y, progress = t})
+            end
+            
+            -- Carve corridor with variable width
+            for i, path_tile in ipairs(meandered_path) do
+                -- Interpolate width based on distance from important nodes
+                local current_width = math.floor(from_width + (to_width - from_width) * path_tile.progress + 0.5)
+                
+                -- Apply terrain-based width modifiers
+                if WorldGeneration.isInBounds(world, path_tile.x, path_tile.y) then
+                    local terrain_biome = world.tiles[path_tile.x][path_tile.y].biome.id
+                    local terrain_modifier = GameConfig.MST_PATH_SYSTEM.TERRAIN_WIDTH_MODIFIERS[terrain_biome] or 1.0
+                    current_width = math.max(0, math.floor(current_width * terrain_modifier + 0.5))
+                end
+                
+                -- Check if we're near a junction (close to nodes) and expand width
+                local near_junction = false
+                local junction_distance = GameConfig.MST_PATH_SYSTEM.JUNCTION_EXPANSION_RADIUS
+                for _, node in ipairs({edge.from, edge.to}) do
+                    local dist_to_node = math.sqrt((path_tile.x - node.x)^2 + (path_tile.y - node.y)^2)
+                    if dist_to_node <= junction_distance then
+                        current_width = current_width + 1
+                        near_junction = true
+                        break
+                    end
+                end
+                
+                -- Carve the corridor with calculated width
+                for dx = -current_width, current_width do
+                    for dy = -current_width, current_width do
+                        -- Use circular brush for more natural paths (instead of + shape)
+                        local distance = math.sqrt(dx*dx + dy*dy)
+                        if distance <= current_width then
+                            local carve_x, carve_y = path_tile.x + dx, path_tile.y + dy
+                            if WorldGeneration.isInBounds(world, carve_x, carve_y) then
                                 world.tiles[carve_x][carve_y].biome = {
                                     id = PATH_BIOME_ID,
                                     name = WorldGeneration.BIOMES[PATH_BIOME_ID].name,
@@ -313,7 +568,7 @@ function WorldGeneration.generateWorld(width, height)
                                     traversal_difficulty = WorldGeneration.BIOMES[PATH_BIOME_ID].traversal_difficulty,
                                     hazard = WorldGeneration.BIOMES[PATH_BIOME_ID].hazard
                                 }
-                                world.tiles[carve_x][carve_y].isCorridorTile = true -- Mark for later
+                                world.tiles[carve_x][carve_y].isCorridorTile = true
                             end
                         end
                     end
@@ -322,13 +577,58 @@ function WorldGeneration.generateWorld(width, height)
         end
     end
 
+    -- Generate MST-based corridors if enabled
+    if GameConfig.MST_PATH_SYSTEM.ENABLED then
+        -- Generate elevation map for terrain-aware pathing
+        Perlin.seed(base_seed + 2) -- Different seed for elevation
+        local elevation_map = {}
+        for x = 1, width do
+            elevation_map[x] = {}
+            for y = 1, height do
+                local ex = x * GameConfig.MST_PATH_SYSTEM.NOISE_SCALE_ELEVATION
+                local ey = y * GameConfig.MST_PATH_SYSTEM.NOISE_SCALE_ELEVATION
+                elevation_map[x][y] = Perlin.normalized(ex, ey, 4, 0.6) -- Multiple octaves for realistic terrain
+            end
+        end
+        
+        -- Find center of regions
+        local region_centers = {}
+        for _, region_config in ipairs(GameConfig.WORLD_REGIONS) do
+            local count = 0
+            local sum_x, sum_y = 0, 0
+            for tx = 1, width do
+                for ty = 1, height do
+                    if region_map[tx][ty] == region_config.id then
+                        sum_x = sum_x + tx
+                        sum_y = sum_y + ty
+                        count = count + 1
+                    end
+                end
+            end
+            if count > 0 then
+                region_centers[region_config.id] = {
+                    x = math.floor(sum_x / count),
+                    y = math.floor(sum_y / count),
+                    config = region_config
+                }
+            end
+        end
+        
+        -- Generate nodes, build MST, and carve corridors
+        local nodes = generateMSTNodes(world, region_map, region_centers)
+        local mst_edges = buildMinimumSpanningTree(nodes, world, region_map, elevation_map)
+        carveMSTCorridors(world, mst_edges, elevation_map)
+        
+        print("MST path generation complete. Created " .. #mst_edges .. " corridors connecting " .. #nodes .. " nodes.")
+    end
+
     -- Third pass: Identify borders and create chokepoints (simplified), avoiding corridor tiles
     local CHOKEPOINT_CHANCE = 0.1 -- 10% chance for a border tile to become a path
-    -- local BORDER_DIFFICULTY_BIOME_ID = GameConfig.BIOME_IDS.STORMSPIRE_PEAKS -- Mountains as difficult border
+    local PATH_BIOME_ID = GameConfig.MST_PATH_SYSTEM.PATH_BIOME_ID
 
     for x = 1, width do
         for y = 1, height do
-            if not world.tiles[x][y].isCorridorTile then -- Skip if already part of a strategic corridor
+            if not world.tiles[x][y].isCorridorTile then -- Skip if already part of a MST corridor
                 local current_tile_region_id = world.tiles[x][y].region_id
                 local is_border_tile = false
 
