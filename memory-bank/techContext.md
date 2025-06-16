@@ -70,13 +70,27 @@ Game state is centralized in `GameManager.GameState`, allowing for easy access t
 
 All game constants and configuration settings are centralized in `src/config/game_config.lua` to make it easy to find and modify parameters. This includes:
 
-- World dimensions and tile sizes
-- Player starting values
+- World dimensions and tile sizes (200x200 grid)
+- Player starting values and relic effects
 - Hazard probabilities and effects
 - UI layout parameters (including Relic UI)
 - Save file settings
-- Debug keys (e.g., for adding fragments, reconstructing relics)
-- Gameplay action keys (e.g., for attempting relic reconstruction)
+- Debug keys (f1-f4 for fragments, reconstruction, map reveal, climbing picks)
+- Gameplay action keys (r for relic reconstruction)
+- MST path system configuration
+- Landmark sprite definitions
+- Secret passage configurations
+
+### Advanced World Generation
+
+The world generation system uses multiple sophisticated techniques:
+
+- **Region-based biome palettes**: Different areas have thematic biome collections
+- **MST Path System**: Minimum Spanning Tree algorithm creates strategic pathways
+- **Terrain-aware pathfinding**: Paths consider biome difficulty and avoid obstacles
+- **Natural path wobble**: Organic-looking corridors with random variations
+- **Environmental barriers**: Impassable terrain requiring specific tools/abilities
+- **Strategic chokepoints**: Border areas with pathway connections
 
 ### Love2D Callback Structure
 
@@ -91,9 +105,10 @@ These callbacks are kept minimal in main.lua and delegate to the appropriate mod
 
 ## Technical Constraints
 
-- **Performance**: The game uses a 100x100 grid for world representation, which requires careful optimization for rendering and contract checking.
-- **Memory Usage**: The world state can become large, especially with explored tile tracking.
+- **Performance**: The game uses a 200x200 grid for world representation, which requires careful optimization for rendering and contract checking.
+- **Memory Usage**: The world state can become large, especially with explored tile tracking and complex landmark relationships.
 - **Save Data**: Uses Lua's serialization through the Serpent library, which has some limitations for complex data structures.
+- **MST Path Generation**: Complex pathfinding algorithms may impact world generation performance on larger worlds.
 
 ## Dependency Management
 
@@ -130,3 +145,43 @@ For AI-assisted development, the codebase has been structured to be easily compr
 3. **Centralized Configuration**: Easy to find and adjust parameters
 4. **Consistent Patterns**: Same patterns used throughout the codebase
 5. **Memory Bank**: Detailed tracking of project state, decisions, and progress
+6. **Advanced System Documentation**: Detailed technical specifications for MST paths, landmark interactions, and relic effects
+7. **Visual System**: Landmark sprites defined through data structures rather than hardcoded graphics
+
+## Current Development Focus
+
+**Phase: Finding the Fun**
+The project has reached technical maturity with all major systems implemented and working reliably. The current focus has shifted from feature development to gameplay iteration and discovering what makes the game genuinely engaging and fun.
+
+**Current Activities:**
+- **Core Gameplay Loop Discovery**: Identifying which mechanics create genuine player engagement
+- **Pacing Experimentation**: Adjusting reward frequency, progression speed, and challenge difficulty
+- **Player Motivation Research**: Testing whether exploration goals feel meaningful and achievable
+- **Feedback Loop Refinement**: Ensuring player actions have clear, satisfying consequences
+- **System Balance Testing**: Fine-tuning the interaction between all implemented systems
+
+**Technical Foundation Status:**
+All major systems are complete and functional, providing a solid platform for gameplay experimentation. The modular architecture supports rapid iteration and testing of different gameplay approaches.
+
+**Next Phase Preparation:**
+Once the core fun factor is established, development will move to content expansion and polish phases.
+
+## Key Technical Features
+
+### Relic System
+- **Fragment-based reconstruction**: Players collect fragments to rebuild ancient artifacts
+- **Passive effects**: Reconstructed relics provide permanent bonuses
+- **Persistent progression**: Relic status saves across game runs
+- **Debug support**: Tools for testing reconstruction mechanics
+
+### Landmark Enhancement System
+- **Interactive landmarks**: Obelisks reveal springs, levers open passages, totems reveal caches
+- **Visual sprite system**: Landmarks rendered using LÖVE2D drawing primitives
+- **Complex relationships**: Landmarks can reference and affect other landmark locations
+- **Reward diversity**: Different landmark types provide varied progression rewards
+
+### Advanced Pathfinding
+- **Minimum Spanning Tree**: Connects all regions with optimal path network
+- **Terrain penalties**: Different biomes have different traversal costs
+- **Region connectivity**: Ensures all areas remain accessible
+- **Natural appearance**: Wobble effects and organic curves prevent grid-like paths

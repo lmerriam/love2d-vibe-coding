@@ -17,105 +17,48 @@ graph TD
 
     D --> C
     E --> C
-    E --> I # Renderer uses GameConfig for UI positioning
+    E --> I
 
     F --> I
     G --> I
     H --> F
+    
+    subgraph Core_Systems
+        C[GameManager - Central State Management]
+        F[WorldGeneration - MST Paths & Regions]
+        E[Renderer - Visual System & Sprites]
+        D[InputHandler - User Input Processing]
+        I[GameConfig - Centralized Configuration]
+    end
     
     subgraph GameManager_Functions
-        direction LR
-        C_init[initialize]
-        C_save[saveGame]
-        C_load[loadGame]
-        C_death[onPlayerDeath]
-        C_move[movePlayer]
+        C_init[initialize - Setup & Life Spring effect]
+        C_save[saveGame - Meta persistence]
+        C_load[loadGame - Robust loading with defaults]
+        C_death[onPlayerDeath - Relic fragment persistence]
+        C_move[movePlayer - Movement & hazard checking]
+        C_landmark[checkLandmark - Complex landmark interactions]
         C_attempt_relic[attemptRelicReconstruction]
-        C_debug_frags[addDebugRelicFragments]
-        C_debug_relic[debugReconstructNextRelic]
-        C_is_relic[isRelicReconstructed]
-        C_explore[exploreAroundPlayer]
-        C_hazard[checkHazard]
-    end
-    C --> C_init
-    C --> C_save
-    C --> C_load
-    C --> C_death
-    C --> C_move
-    C --> C_attempt_relic
-    C --> C_debug_frags
-    C --> C_debug_relic
-    C --> C_is_relic
-    C --> C_explore
-    C --> C_hazard
-    C_init --> C_is_relic    # For Life Spring
-    C_death --> C_is_relic   # For Life Spring
-    C_move --> C_explore     # movePlayer calls exploreAroundPlayer
-    C_move --> C_hazard      # movePlayer calls checkHazard
-    C_explore --> C_is_relic # exploreAroundPlayer uses isRelicReconstructed for Aether Lens
-    C_hazard --> C_is_relic  # checkHazard uses isRelicReconstructed for Void Anchor AND Chrono Prism
-
-
-    subgraph InputHandler_Calls
-        direction LR
-        IH_move[handleKeyPress_Move]
-        IH_relic_attempt[handleKeyPress_RelicAttempt]
-        IH_debug_frags[handleKeyPress_DebugFrags]
-        IH_debug_relic[handleKeyPress_DebugRelic]
-    end
-    D --> IH_move
-    D --> IH_relic_attempt
-    D --> IH_debug_frags
-    D --> IH_debug_relic
-    IH_move --> C_move
-    IH_relic_attempt --> C_attempt_relic
-    IH_debug_frags --> C_debug_frags
-    IH_debug_relic --> C_debug_relic
-
-    subgraph Renderer_Functions
-        direction LR
-        R_render[render]
-        R_world[renderWorld]
-        R_player[renderPlayer]
-        R_ui[renderUI]
-        R_relic_ui[renderRelicReconstructionUI]
-        R_notifs[renderNotifications]
-        R_contracts[renderContracts]
-    end
-    E --> R_render
-    R_render --> R_world
-    R_render --> R_player
-    R_render --> R_ui
-    R_render --> R_relic_ui
-    R_render --> R_notifs
-    R_render --> R_contracts
-    
-    subgraph Configuration
-        I[GameConfig]
+        C_debug_suite[Debug Tools Suite - f1-f4 keys]
+        C_is_relic[isRelicReconstructed - Passive effect queries]
+        C_explore[exploreAroundPlayer - Aether Lens integration]
+        C_hazard[checkHazard - Chrono Prism & Void Anchor effects]
     end
     
-    C --> I
-    D --> C
-    E --> C
-    F --> I
-    G --> I
-    C --> H[ContractSystem]
-    I --> C_init
-    I --> C_death
-    I --> C_move  # GameConfig still used for general player/world settings in move context
-    I --> C_explore
-    I --> C_hazard
-    
-    subgraph Configuration
-        I[GameConfig]
+    subgraph WorldGeneration_Systems
+        WG_mst[MST Path Generation]
+        WG_regions[Region-Based Biomes]
+        WG_landmarks[Complex Landmark Placement]
+        WG_barriers[Environmental Barriers]
+        WG_corridors[Strategic Corridors]
     end
     
-    C --> I
-    D --> C
-    E --> C
-    F --> I
-    G --> I
-    H --> F
+    subgraph Rendering_Systems
+        R_sprites[Data-Driven Landmark Sprites]
+        R_ui[Multi-Panel UI System]
+        R_views[Dual View Modes]
+        R_notifications[Notification System]
+    end
 ```
 
 The codebase now follows a modular architecture with clear separation of concerns:
@@ -148,46 +91,52 @@ The codebase now follows a modular architecture with clear separation of concern
 ---
 
 ### **KEY TECHNICAL DECISIONS**
-1. **Modular Architecture**
-   - Separation of concerns with focused modules
-   - Centralized configuration in game_config.lua
-   - Explicit module dependencies for better traceability
-   - Comprehensive documentation for AI maintainability
+1. **Advanced Modular Architecture**
+   - **Complete separation of concerns** across 8 focused modules
+   - **Centralized configuration system** in game_config.lua with 400+ parameters
+   - **Explicit dependency management** for clear module relationships
+   - **AI-first documentation** with comprehensive memory bank system
+   - **Debug-driven development** with extensive testing infrastructure
 
-2. **Procedural Generation**
-   - **Multi-layered generation system:**
-     - Region-based biome palettes using Perlin noise
-     - **MST Path Generation:** Graph-based path system using Minimum Spanning Tree algorithm
-     - Terrain-aware pathfinding with biome penalties and region-crossing bonuses
-     - Strategic node placement and natural path wobble effects
-   - Enhanced Perlin noise implementation for biome distribution
-   - Random landmark placement with walkability checks
-   - Tile-based world representation (200x200 grid, expanded for larger worlds)
-   - Configurable generation parameters
-   - **Distinct biome system:** Dedicated "Ancient Path" biome for MST-generated pathways
+2. **Sophisticated Procedural Generation**
+   - **Multi-algorithm world generation:**
+     - **Region-based biome palettes** using dual Perlin noise layers
+     - **MST Path Generation** with Prim's algorithm for optimal connectivity
+     - **Terrain-aware pathfinding** with biome penalties and region bonuses
+     - **Organic path appearance** with wobble effects and natural curves
+     - **Environmental barriers** requiring specific tools/abilities
+   - **200x200 world scale** with performance optimizations
+   - **Complex landmark relationships** (11 types with interactions)
+   - **Strategic corridor system** connecting safe regions
+   - **Configurable generation parameters** for easy tweaking
 
-3. **Game State Management**
-   - Centralized `GameState` table within GameManager, which includes `meta.relics` (for status) and `meta.relic_fragments` (for collected counts).
-   - Separation of run-specific state (e.g., `player.inventory.relic_fragments`) and persistent meta-state.
-   - Serialization using Serpent library for `GameState.meta`.
-   - Clear state update functions, including robust `loadGame` merging and `onPlayerDeath` fragment persistence.
+3. **Robust State Management**
+   - **Centralized GameState** with clear run vs. meta-state separation
+   - **Fragment-based progression** with persistent relic reconstruction
+   - **Graceful save/load system** with default value merging
+   - **Death state handling** preserving player progress
+   - **Real-time state validation** ensuring data consistency
 
-4. **Progression Systems**
-   - Relic reconstruction is a functional long-term goal, allowing players to spend collected fragments to complete relics.
-   - Exploration-focused ability unlocks
-   - Contract rewards tied to progression
-   - Meta-progression across gameplay sessions
+4. **Comprehensive Progression Systems**
+   - **Four-relic reconstruction system** with passive effects
+   - **Contract-based exploration** with scroll discovery mechanics
+   - **Stamina-based challenge** without punitive movement costs
+   - **Multi-layered rewards** (fragments, abilities, items)
+   - **Cross-session persistence** maintaining long-term progression
 
-5. **Systems Design**
-   - Decoupled systems: Movement, Hazard, Contract, Progression, Ability
-   - Event-driven hazard system triggered on movement
-   - Observer pattern for contract completion events
-   - Factory pattern for ability effects
+5. **Advanced Systems Integration**
+   - **Decoupled but interconnected** systems with clear interfaces
+   - **Event-driven interactions** for landmark discoveries
+   - **Passive effect system** for relic bonuses
+   - **Complex landmark behaviors** (revealing, activating, transforming)
+   - **Performance-optimized** contract checking and world updates
 
-6. **Rendering Architecture**
-   - Dedicated Renderer module with specialized rendering functions including `renderRelicReconstructionUI`.
-   - Clear separation between game logic and presentation.
-   - Organized rendering of world, player, UI (general, relic, notifications, contracts).
+6. **Data-Driven Visual System**
+   - **Sprite-based landmark rendering** using LÖVE2D primitives
+   - **Multi-panel UI architecture** with contextual information
+   - **Dual view mode system** (zoomed + minimap)
+   - **Real-time notification system** with timing and fade effects
+   - **Configuration-driven visuals** requiring no art assets
 
 ---
 
@@ -236,105 +185,104 @@ The codebase now follows a modular architecture with clear separation of concern
 ---
 
 ### **CRITICAL IMPLEMENTATION PATHS**
-1. **Initialization Flow**
+### **CRITICAL IMPLEMENTATION FLOWS**
+
+1. **Advanced World Generation Flow**
 ```mermaid
 sequenceDiagram
-    main->>GameManager: love.load()
-    GameManager->>GameManager: loadGame()
-    GameManager->>WorldGeneration: generateWorld()
-    WorldGeneration->>Perlin: Generate noise map
-    Perlin-->>WorldGeneration: Noise values
-    WorldGeneration-->>GameManager: World data
-    GameManager->>AbilitySystem: applyStartEffects()
-    GameManager->>ContractSystem: generateContract()
-    ContractSystem-->>GameManager: Initial contract
+    participant WG as WorldGeneration
+    participant MST as MST Path System
+    participant Config as GameConfig
+    
+    WG->>Config: Load WORLD_REGIONS & MST_PATH_SYSTEM
+    WG->>WG: Generate region noise map
+    WG->>WG: Assign biomes by region palettes
+    WG->>MST: generateMSTNodes()
+    MST->>MST: Create nodes (start, regions, landmarks, strategic)
+    MST->>MST: buildMinimumSpanningTree()
+    MST->>MST: carveMSTCorridors() with wobble
+    WG->>WG: Generate border chokepoints
+    WG->>WG: Place environmental barriers
+    WG->>WG: Generate complex landmark pairs
+    WG-->>GameManager: Complete 200x200 world
 ```
 
-2. **Game Loop Execution**
-```mermaid
-sequenceDiagram
-    main->>GameManager: love.update(dt)
-    GameManager->>GameManager: updateCamera()
-    GameManager->>GameManager: updateNotifications(dt)
-    GameManager->>GameManager: updateContracts(dt)
-    main->>Renderer: love.draw()
-    Renderer->>Renderer: renderWorld()
-    Renderer->>Renderer: renderPlayer()
-    Renderer->>Renderer: renderUI()
-    Renderer->>Renderer: renderNotifications()
-    Renderer->>Renderer: renderContracts()
-    Renderer->>Renderer: renderRelicReconstructionUI()
-    main->>InputHandler: love.keypressed(key)
-    InputHandler->>GameManager: Player actions (move, toggleViewMode)
-    InputHandler->>GameManager: Debug actions (addDebugRelicFragments, debugReconstructNextRelic)
-    InputHandler->>GameManager: Gameplay actions (attemptRelicReconstruction)
-```
-
-3. **Player Movement Flow**
+2. **Complex Landmark Interaction Flow**
 ```mermaid
 flowchart TD
-    A[InputHandler.handleKeyPress] --> B[GameManager.movePlayer]
-    B --> C[Check bounds]
-    C --> D[Update player position]
-    D --> E[GameManager.exploreAroundPlayer]
-    D --> F[AbilitySystem.applyMovementEffects]
-    D --> G[GameManager.checkHazard]
-    G --> H{Stamina loss from hazard?}
-    H --> I[GameManager.checkLandmark]
-    I --> J{Stamina <= 0?}
-    J -->|Yes| K[GameManager.onPlayerDeath]
-    J -->|No| L[Continue]
-    I --> M{Landmark?}
-    M -->|Yes| N[Handle landmark discovery]
-    M -->|No| L
-    Note: Default stamina cost per move removed. Stamina loss only from hazards.
+    A[Player visits landmark] --> B{Landmark type?}
+    B -->|Ancient Obelisk| C[Reveal linked Hidden Spring]
+    B -->|Ancient Lever| D[Open secret passage]
+    B -->|Seer's Totem| E[Reveal linked Hidden Cache]
+    B -->|Hidden Cache| F[Grant reward & mark looted]
+    B -->|Contract Scroll| G[Generate new contract]
+    C --> H[Set spring discovered=true, tile explored=true]
+    D --> I[Change passage biome to passable]
+    E --> J[Set cache discovered=true, tile explored=true]
+    F --> K[Apply LANDMARK_CONFIG reward]
+    G --> L[Add to active contracts]
+    H --> M[Show notification]
+    I --> M
+    J --> M
+    K --> M
+    L --> M
 ```
 
-4. **Contract System Flow**
-```mermaid
-sequenceDiagram
-    GameManager->>ContractSystem: checkCompletion(contract)
-    ContractSystem->>ContractSystem: Run type-specific check
-    ContractSystem-->>GameManager: Completion status
-    GameManager->>ContractSystem: grantReward(contract)
-    ContractSystem->>ContractSystem: Generate reward
-    ContractSystem-->>GameManager: Reward details
-    GameManager->>GameManager: Apply reward to player
-    GameManager->>GameManager: addNotification()
-```
-
-5. **Death and Persistence Flow**
+3. **Relic Effect Integration Flow**
 ```mermaid
 flowchart TD
-    A[Stamina <= 0] --> B[GameManager.onPlayerDeath]
-    B --> C[Save relic fragments to meta]
-    C --> D[Save discovered landmarks]
-    D --> E[GameManager.saveGame]
-    E --> F[Reset world/player]
-    F --> G[Load persistent abilities]
-    G --> H[Reset contracts]
-    H --> I[Continue game]
+    A[Game Event] --> B{Check relic effects}
+    B -->|Player movement| C{Aether Lens reconstructed?}
+    C -->|Yes| D[Increase explore radius]
+    B -->|Hazard encountered| E{Chrono Prism reconstructed?}
+    E -->|Yes| F[Reduce stamina loss 25%]
+    B -->|Hazard encountered| G{Void Anchor reconstructed?}
+    G -->|Yes| H[10% chance ignore damage]
+    B -->|Game start/death| I{Life Spring reconstructed?}
+    I -->|Yes| J[Increase starting stamina]
+    D --> K[Apply effect]
+    F --> K
+    H --> K
+    J --> K
+```
 
-6. **Relic Reconstruction Flow**
+4. **MST Path Generation Algorithm**
+```mermaid
+flowchart TD
+    A[Start MST Generation] --> B[Collect all nodes]
+    B --> C[Calculate edge weights]
+    C --> D{Use terrain penalties?}
+    D -->|Yes| E[Apply biome traversal costs]
+    D -->|No| F[Use Euclidean distance]
+    E --> G[Apply region crossing bonus]
+    F --> G
+    G --> H[Run Prim's algorithm]
+    H --> I[Generate path segments]
+    I --> J{Apply wobble effects?}
+    J -->|Yes| K[Add natural curves]
+    J -->|No| L[Use straight lines]
+    K --> M[Carve corridors with width]
+    L --> M
+    M --> N[Mark corridor tiles]
+```
+
+5. **Save/Load Robustness Flow**
 ```mermaid
 sequenceDiagram
-    InputHandler->>GameManager: love.keypressed("r") (attemptRelicReconstruction)
-    InputHandler->>GameManager: love.keypressed("r") (attemptRelicReconstruction)
-    GameManager->>GameManager: Iterate meta.relics
-    loop For each non-reconstructed relic
-        GameManager->>GameManager: Check player.inventory.relic_fragments vs relic.fragments
-        alt Enough Fragments
-            GameManager->>GameManager: Deduct fragments from player.inventory
-            GameManager->>GameManager: Set relic.reconstructed = true
-            GameManager->>GameManager: addNotification("Relic X reconstructed! Its power flows through you.")
-            Note over GameManager: Passive effects are now active.
-            GameManager-->>InputHandler: return true (stop iteration)
-        else Not Enough Fragments
-            GameManager->>GameManager: Continue to next relic
-        end
+    participant GM as GameManager
+    participant Save as Save System
+    participant Config as Default Values
+    
+    GM->>Save: loadGame()
+    Save->>Save: Check file exists
+    alt Save file exists
+        Save->>Save: Deserialize data
+        Save->>Save: Validate structure
+        Save->>GM: Merge with defaults
+        GM->>GM: Apply loaded meta state
+    else No save file
+        GM->>Config: Use default meta values
+        GM->>GM: Initialize fresh state
     end
-    alt No suitable relic found or all reconstructed
-        GameManager->>GameManager: addNotification("Cannot reconstruct / All done.")
-        GameManager-->>InputHandler: return false
-    end
+    Note over GM: Graceful fallback ensures stability
 ```

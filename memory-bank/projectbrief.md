@@ -14,7 +14,7 @@
 **Dependencies**:  
 - `perlin.lua` (procedural generation)  
 - `serpent.lua` (save/load serialization)  
-**Grid System**: 100x100 world (1 tile = 32px)  
+**Grid System**: 200x200 world (1 tile = 32px)  
 
 ---
 
@@ -22,8 +22,8 @@
 ```lua
 GameState = {
   world = {  -- Generated each run
-    width = 100,
-    height = 100,
+    width = 200,
+    height = 200,
     tiles = {}  -- 2D array [x][y]
   },
   
@@ -64,19 +64,23 @@ GameState = {
 | 1 | Rusted Oasis | Low | (200,180,100) | None |  
 | 2 | Veiled Jungle | Medium | (30,120,40) | 20% stamina drain |  
 | 3 | Stormspire Peaks | High | (120,120,140) | 40% stamina drain or reward |  
+| 4 | Desert | Low | (194,178,128) | None |
+| 5 | Tundra | High | (150,150,180) | Harsh conditions |
+| 6 | Impassable Mountain Face | Blocked | (80,80,90) | Impassable without tools |
+| 7 | Ancient Path (MST) | Low | (160,140,80) | Strategic pathways |
 
 **Generation Algorithm**:  
 ```python
-1. Initialize 100x100 grid  
-2. Generate Perlin noise map (scale=0.1)  
-3. Assign biomes:  
-   - noise < 0.3 → Biome 1  
-   - 0.3 ≤ noise < 0.6 → Biome 2  
-   - noise ≥ 0.6 → Biome 3  
-4. Place 20 landmarks:  
-   - Types: ["Temple", "Caravan", "Cave", "Monolith"]  
-   - At random walkable positions  
-   - Properties: {type, discovered, reward_type}  
+1. Initialize 200x200 grid  
+2. Generate region-based biome assignment using multiple Perlin noise layers
+3. Apply MST (Minimum Spanning Tree) path system connecting regions and landmarks
+4. Add environmental barriers and chokepoints
+5. Place 40 landmarks with enhanced interaction types:  
+   - Types: ["Ancient Ruins", "Mystic Shrine", "Crystal Formation", "Abandoned Camp", 
+            "Strange Monolith", "Ancient Obelisk", "Hidden Spring", "Ancient Lever", 
+            "Seer's Totem", "Hidden Cache", "Contract_Scroll"]  
+   - Advanced landmark interactions (revealing, activating, rewards)
+   - Properties: {type, discovered, visited, activated, looted, reveals_landmark_at}  
 ```
 
 ---
@@ -108,12 +112,14 @@ end
 2. `explore_biome`: Reveal X% of biome tiles  
 3. `collect_resource`: Gather Y units of resource  
 
+**Contract Discovery**: Contract scrolls can be found at landmarks, generating additional objectives.
+
 **Flow**:  
 ```mermaid
 graph TD
   A[Contract Generated] --> B[Track Progress]
   B --> C{Completed?}
-  C -->|Yes| D[Grant Reward]
+  C -->|Yes| D[Grant Reward: Relic Fragments/Abilities]
   D --> E[Generate New Contract]
 ```
 
@@ -131,10 +137,13 @@ graph TD
 ```lua
 function onPlayerDeath()
   saveToMeta({
-    resources = player.inventory.most_valuable,
-    landmarks = world.newly_discovered_landmarks
+    relic_fragments = player.inventory.relic_fragments,
+    discovered_landmarks = world.discovered_landmarks,
+    unlocked_abilities = player.abilities,
+    relics = meta.relics -- Relic reconstruction status
   })
   resetWorld()
+  -- Life Spring relic provides stamina boost on respawn
 end
 ```
 
@@ -153,8 +162,10 @@ player: RED circle at (x*32, y*32)
 **UI Elements**:  
 - Top-left: Stamina bar (GREEN/YELLOW/RED gradient)  
 - Top-right: Active contract description  
-- Bottom-right: Inventory counts
-- Bottom-right (new): Relic Reconstruction UI (shows relic status and fragment requirements)
+- Bottom-left: Inventory counts (including relic fragments by type)
+- Bottom-right: Relic Reconstruction UI (shows relic status and fragment requirements)
+- Landmark sprites: Visual icons rendered using LÖVE2D drawing primitives
+- Notifications: Timed messages for discoveries and events
 
 ---
 
@@ -163,8 +174,8 @@ player: RED circle at (x*32, y*32)
 - `meta.unlocked_abilities`  
 - `meta.banked_resources`  
 - `meta.discovered_landmarks`
-- `meta.relics` (status of each relic)
-- `meta.relic_fragments` (player's collected fragments)
+- `meta.relics` (status and reconstruction state of each relic)
+- `meta.relic_fragments` (persistent fragment counts across runs)
 
 **Operations**:
 ```lua
@@ -182,31 +193,44 @@ end
 
 ---
 
-### **9. DEVELOPMENT PRIORITIES**  
-1. World generation + rendering  
-2. Player movement + fog of war  
-3. Hazard system  
-4. Contract tracking  
-5. Meta-progression persistence  
-6. UI implementation  
+### **9. CURRENT STATE**  
+✅ **TECHNICAL FOUNDATION COMPLETE**:
+1. Advanced world generation with MST paths, regions, and strategic corridors
+2. Player movement with stamina-based hazard system (no default movement cost)
+3. Comprehensive relic reconstruction system with passive effects
+4. Enhanced landmark interactions (Obelisk-Spring, Ancient Lever, Seer's Totem)
+5. Contract system with scroll discovery and relic fragment rewards
+6. Visual landmark sprite system using LÖVE2D drawing primitives
+7. Meta-progression persistence with robust save/load
 
----
+🎯 **CURRENT FOCUS - FINDING THE FUN**:
+- Identifying which mechanics create genuine player engagement
+- Experimenting with reward pacing and progression satisfaction
+- Refining core gameplay loop for maximum enjoyment
+- Testing different approaches to player motivation and goal-setting
 
-### **10. TEST CASES**  
+### **10. TEST SCENARIOS**  
 ```gherkin
-Scenario: Biome Hazard Trigger
-  Given player is in Veiled Jungle
-  When player moves to new tile
-  Then 20% chance to lose 10 stamina
+Scenario: MST Path Connectivity
+  Given a newly generated world
+  When examining the map
+  Then strategic paths should connect all regions
+  And paths should avoid impassable terrain when possible
 
-Scenario: Contract Completion
-  Given "Find Temple" contract
-  When player discovers Temple landmark
-  Then contract marked complete
-  And "glide" ability unlocked
+Scenario: Landmark Navigation (Obelisk-Spring)
+  Given an Ancient Obelisk is discovered
+  When player visits the Obelisk
+  Then linked Hidden Spring location is revealed on map
+  And Spring becomes visible in minimap
 
-Scenario: Death Sequence
-  Given player has 5 crystals
-  When stamina reaches 0
-  Then crystals saved to meta
-  And new world generated
+Scenario: Relic Reconstruction
+  Given player has sufficient fragments for a relic
+  When pressing 'r' key
+  Then relic is reconstructed and fragments are consumed
+  And passive effects become active immediately
+
+Scenario: Environmental Barriers
+  Given player approaches Impassable Mountain Face
+  When attempting to move without climbing picks
+  Then movement is blocked with notification
+  But with climbing picks, movement is allowed
