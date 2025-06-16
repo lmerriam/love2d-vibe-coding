@@ -3,7 +3,10 @@
 ---
 
 ### **CURRENT WORK FOCUS**
-- **Landmark Navigation Enhancement (Obelisk-Spring):** Implemented a system where "Ancient Obelisks" reveal the locations of "Hidden Springs," enhancing landmark interaction for navigation.
+- **Landmark Visuals Enhancement:** Implemented a system to render simple, distinct icons for each landmark type using LÖVE2D's drawing primitives, replacing character-based map symbols.
+- **Previous: Landmark Navigation Enhancement (Seer's Totem & Hidden Cache):** Implementing "Seer's Totem" landmarks that, when activated, reveal the location of a "Hidden Cache" which provides a reward.
+- **Previous: Landmark Navigation Enhancement (Ancient Lever & Secret Passage):** Implemented "Ancient Lever" landmarks that, when activated, open a predefined secret passage by changing impassable tiles to passable ones.
+- **Previous: Landmark Navigation Enhancement (Obelisk-Spring):** Implemented a system where "Ancient Obelisks" reveal the locations of "Hidden Springs," enhancing landmark interaction for navigation.
 - **Previous: Impassable Terrain Tuning:** Increased `IMPASSABLE_CHANCE` to 0.75 in `src/world/world_generation.lua` to make "Impassable Mountain Face" barriers more consistent and less sparse.
 - **Previous: UI Bug Fix (Inventory Display):** Fixed UI rendering for boolean inventory items.
 - **Previous: Environmental Barriers & Item Gating (Phase 4a - Impassable Mountains):** Implemented "Impassable Mountain Face" biome and "Climbing Picks" item.
@@ -31,6 +34,46 @@
             - Added specific reward logic for visiting a Hidden Spring.
     - **`src/rendering/renderer.lua`**:
         - Updated `renderWorld()` to display unique symbols for discovered but unvisited landmarks: "O" for "Ancient Obelisk" and "H" for "Hidden Spring".
+- **Landmark Navigation Enhancement (Ancient Lever & Secret Passage):**
+    - **`src/config/game_config.lua`**:
+        - Added `SECRET_PASSAGES.LEVER_ACTIVATED` configuration, defining passage tile coordinates, initial/revealed biome IDs, and lever count.
+    - **`src/world/world_generation.lua`**:
+        - Added "Ancient Lever" to `LANDMARK_TYPES`.
+        - Updated landmark placement to include "Ancient Lever" landmarks.
+        - Added a pass to ensure secret passage tiles are initialized with the `INITIAL_BIOME_ID`.
+    - **`src/core/game_manager.lua`**:
+        - Updated `checkLandmark()` to handle "Ancient Lever" activation:
+            - Changes biome of passage tiles to `REVEALED_BIOME_ID`.
+            - Marks passage tiles as explored.
+            - Sets lever's `activated` flag.
+            - Provides notifications.
+    - **`src/rendering/renderer.lua`**:
+        - Updated `renderWorld()` to display "L" for discovered but unvisited "Ancient Lever" landmarks (using `GameConfig.MAP_ICONS.ANCIENT_LEVER`).
+- **Landmark Navigation Enhancement (Seer's Totem & Hidden Cache):**
+    - **`src/config/game_config.lua`**:
+        - Added `WORLD.SEER_CACHE_PAIRS_COUNT`.
+        - Added `LANDMARK_CONFIG.HIDDEN_CACHE_REWARD` to define rewards.
+        - Added `MAP_ICONS.SEER_TOTEM` ("S") and `MAP_ICONS.HIDDEN_CACHE` ("$").
+    - **`src/world/world_generation.lua`**:
+        - Added "Seer's Totem" and "Hidden Cache" to `LANDMARK_TYPES`.
+        - Implemented logic to place Seer's Totem/Hidden Cache pairs:
+            - "Seer's Totem" stores coordinates to its linked "Hidden Cache".
+            - "Hidden Cache" is marked `initially_hidden`, `discovered = false`, and `looted = false`.
+    - **`src/core/game_manager.lua`**:
+        - Updated `checkLandmark()`:
+            - When a "Seer's Totem" is visited, it reveals its linked "Hidden Cache" (sets `discovered = true`, tile `explored = true`).
+            - When a "Hidden Cache" is visited (and not `looted`), it grants rewards based on `LANDMARK_CONFIG.HIDDEN_CACHE_REWARD` and marks itself as `looted = true`.
+            - Added appropriate notifications.
+    - **`src/rendering/renderer.lua`**:
+        - Updated `renderWorld()` to display map icons for "Seer's Totem" (`GameConfig.MAP_ICONS.SEER_TOTEM`) and "Hidden Cache" (`GameConfig.MAP_ICONS.HIDDEN_CACHE`) when discovered but unvisited. (This was later replaced by the landmark sprite system).
+- **Landmark Visuals Enhancement:**
+    - **`src/config/game_config.lua`**:
+        - Added `LANDMARK_SPRITES` table. This table maps landmark type strings to an array of drawing instructions (shape, mode, color, parameters).
+        - Defined unique drawing instructions for all existing landmark types, including "Ancient Ruins", "Mystic Shrine", "Crystal Formation", "Abandoned Camp", "Strange Monolith", "Ancient Obelisk", "Hidden Spring", "Ancient Lever", "Seer's Totem", "Hidden Cache", and "Contract_Scroll".
+        - Added a `DEFAULT` sprite for any landmark types not explicitly defined.
+    - **`src/rendering/renderer.lua`**:
+        - Modified `renderWorld()`: Instead of printing a character from `MAP_ICONS` for discovered but unvisited landmarks, it now retrieves the sprite definition from `GameConfig.LANDMARK_SPRITES`.
+        - It iterates through the drawing instructions in the sprite definition and uses `love.graphics` functions (rectangle, circle, polygon, line) to render the icon within the tile. Coordinates and sizes are relative to the tile size.
 - **Impassable Terrain Tuning:**
     - **`src/world/world_generation.lua`**: Changed `IMPASSABLE_CHANCE` from 0.3 to 0.75 in the "Place Impassable Mountain Faces" pass.
 - **UI Bug Fix (Inventory Display):**
@@ -123,14 +166,32 @@
 - Enhanced death handling to preserve ability progression.
 
 ### **NEXT STEPS**
-1.  **Test Landmark Navigation Enhancement (Obelisk-Spring)**:
+1.  **Test Landmark Visuals Enhancement**:
+    *   Verify that all discovered but unvisited landmarks now render using their defined sprites from `GameConfig.LANDMARK_SPRITES` instead of text characters.
+    *   Check that the sprites are correctly scaled and positioned within the tiles in both "zoomed" and "minimap" views.
+    *   Confirm that the `DEFAULT` sprite is used if a landmark type is missing a specific definition (though all current types should be defined).
+    *   Assess visual clarity and distinctiveness of the new icons.
+2.  **Test Landmark Navigation Enhancement (Seer's Totem & Hidden Cache)**:
+    *   Verify "Seer's Totem" and "Hidden Cache" landmarks are generated according to `SEER_CACHE_PAIRS_COUNT`.
+    *   Confirm visiting a "Seer's Totem" reveals its linked "Hidden Cache" on the map (landmark `discovered = true`, tile `explored = true`).
+    *   Check that the revealed "Hidden Cache" is visible on the minimap.
+    *   Verify visiting a "Hidden Cache" grants the configured reward and marks it as looted.
+    *   Check notifications.
+    *   Assess gameplay impact.
+3.  **Test Landmark Navigation Enhancement (Ancient Lever & Secret Passage)**:
+    *   Verify "Ancient Lever" landmarks are generated.
+    *   Confirm the predefined secret passage area is initially impassable.
+    *   Test activating an "Ancient Lever" correctly changes passage tiles to passable and explored.
+    *   Check notifications and map symbol ("L") for the lever.
+    *   Assess gameplay impact.
+3.  **Test Landmark Navigation Enhancement (Obelisk-Spring)**:
     *   Verify Obelisks and Hidden Springs are generated according to `OBELISK_PAIRS_COUNT`.
     *   Confirm visiting an Ancient Obelisk reveals its linked Hidden Spring on the map (sets landmark `discovered = true` and tile `explored = true`).
     *   Check that the revealed Hidden Spring is now visible on the minimap.
     *   Check that appropriate notifications are displayed for Obelisk discovery and Spring reveal.
     *   Verify the new map symbols ("O" for Obelisk, "H" for revealed Spring) appear correctly.
     *   Assess the gameplay impact of this new mechanic.
-2.  **Test New World Generation System (Regions, Palettes, Chokepoints & Strategic Corridors)**:
+4.  **Test New World Generation System (Regions, Palettes, Chokepoints & Strategic Corridors)**:
     *   Verify distinct regions, correct biome palettes, and Tier 1 starting area.
     *   Observe random chokepoints and the newly carved strategic corridors.
     *   Confirm strategic corridors connect safe hubs through non-safe regions.

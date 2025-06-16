@@ -41,10 +41,39 @@
     - Added `OBELISK_PAIRS_COUNT` to `game_config.lua`.
     - Updated `game_manager.lua` to handle the reveal mechanic (including setting the revealed tile as `explored` for minimap visibility) and notifications.
     - Updated `renderer.lua` to display unique map icons ("O", "H") for these landmarks when discovered but unvisited.
+  - **Landmark Navigation Enhancement (Ancient Lever & Secret Passage)**:
+    - Added "Ancient Lever" landmark type and `SECRET_PASSAGES` configuration.
+    - Levers, when activated, now change predefined impassable tiles to passable ones.
+    - Implemented generation logic for Levers and initial state of passage tiles in `world_generation.lua`.
+    - Updated `game_manager.lua` to handle Lever activation and passage transformation.
+    - Updated `renderer.lua` to display "L" (via `GameConfig.MAP_ICONS.ANCIENT_LEVER`) for discovered Levers.
+  - **Landmark Navigation Enhancement (Seer's Totem & Hidden Cache)**:
+    - Added "Seer's Totem" and "Hidden Cache" landmark types.
+    - Totems reveal linked Caches; Caches provide rewards.
+    - Implemented generation logic in `world_generation.lua` (including `SEER_CACHE_PAIRS_COUNT` from config).
+    - Added `LANDMARK_CONFIG.HIDDEN_CACHE_REWARD` and map icons ("S", "$") to `game_config.lua`.
+    - Updated `game_manager.lua` to handle Totem discovery (revealing Cache, setting tile explored) and Cache discovery (granting reward, marking as looted).
+    - Updated `renderer.lua` to display map icons for these new landmarks (this was subsequently replaced by the landmark sprite system).
+  - **Landmark Visuals Enhancement**:
+    - Replaced character-based map symbols with simple, distinct icons rendered using LÖVE2D's drawing primitives.
+    - Added `LANDMARK_SPRITES` table to `game_config.lua`, defining drawing instructions (shape, color, params) for each landmark type.
+    - Modified `renderer.lua` to use these sprite definitions for discovered, unvisited landmarks.
 
 ## What's Left to Build
 
 1.  **Gameplay Testing & Balancing**:
+    *   **Test Landmark Navigation Enhancement (Seer's Totem & Hidden Cache)**:
+        *   Verify "Seer's Totem" and "Hidden Cache" landmarks are generated.
+        *   Confirm visiting a "Seer's Totem" reveals its linked "Hidden Cache" on the map.
+        *   Verify visiting a "Hidden Cache" grants the configured reward and marks it looted.
+        *   Check notifications and map symbols ("S", "$").
+        *   Assess gameplay impact.
+    *   **Test Landmark Navigation Enhancement (Ancient Lever & Secret Passage)**:
+        *   Verify "Ancient Lever" landmarks are generated.
+        *   Confirm the predefined secret passage area is initially impassable.
+        *   Test activating an "Ancient Lever" correctly changes passage tiles to passable and explored.
+        *   Check notifications and map symbol ("L") for the lever.
+        *   Assess gameplay impact.
     *   **Test Landmark Navigation Enhancement (Obelisk-Spring)**:
         *   Verify Obelisks and Hidden Springs are generated according to `OBELISK_PAIRS_COUNT`.
         *   Confirm visiting an Ancient Obelisk reveals its linked Hidden Spring on the map (landmark `discovered` and tile `explored` are true).
@@ -115,7 +144,17 @@ The refactoring effort has significantly improved the codebase organization and 
     - **`src/world/world_generation.lua`**: Added "Ancient Obelisk" and "Hidden Spring" to `LANDMARK_TYPES` and implemented paired placement logic. An Obelisk stores coordinates to its linked Spring, which is initially hidden.
     - **`src/config/game_config.lua`**: Added `WORLD.OBELISK_PAIRS_COUNT` (set to 2).
     - **`src/core/game_manager.lua`**: Updated `checkLandmark()` to handle Obelisk discovery, revealing the linked Hidden Spring on the map (setting landmark `discovered = true` and tile `explored = true` for minimap visibility) and providing notifications. Added specific reward for visiting a Hidden Spring.
-    - **`src/rendering/renderer.lua`**: Updated `renderWorld()` to display "O" for discovered Obelisks and "H" for discovered Hidden Springs (if unvisited).
+    - **`src/rendering/renderer.lua`**: Updated `renderWorld()` to display "O" (via `GameConfig.MAP_ICONS.ANCIENT_OBELISK`) for discovered Obelisks and "H" (via `GameConfig.MAP_ICONS.HIDDEN_SPRING`) for discovered Hidden Springs (if unvisited).
+- **Landmark Navigation Enhancement (Ancient Lever & Secret Passage):**
+    - **`src/config/game_config.lua`**: Added `SECRET_PASSAGES.LEVER_ACTIVATED` configuration.
+    - **`src/world/world_generation.lua`**: Added "Ancient Lever" landmark type, updated placement logic, and added a pass to ensure secret passage tiles are initialized correctly.
+    - **`src/core/game_manager.lua`**: Updated `checkLandmark()` to handle "Ancient Lever" activation, opening the passage.
+    - **`src/rendering/renderer.lua`**: Updated `renderWorld()` to display "L" (via `GameConfig.MAP_ICONS.ANCIENT_LEVER`) for discovered "Ancient Lever" landmarks.
+- **Landmark Navigation Enhancement (Seer's Totem & Hidden Cache):**
+    - **`src/config/game_config.lua`**: Added `WORLD.SEER_CACHE_PAIRS_COUNT`, `LANDMARK_CONFIG.HIDDEN_CACHE_REWARD`, and map icons for "Seer's Totem" ("S") and "Hidden Cache" ("$") under `MAP_ICONS`.
+    - **`src/world/world_generation.lua`**: Added "Seer's Totem" and "Hidden Cache" to `LANDMARK_TYPES`. Implemented paired placement logic, marking Caches as initially hidden and unlooted.
+    - **`src/core/game_manager.lua`**: Updated `checkLandmark()` to handle Totem discovery (reveals Cache, marks tile explored) and Cache discovery (grants reward from config, marks looted).
+    - **`src/rendering/renderer.lua`**: Updated `renderWorld()` to display configured map icons for discovered Totems and Caches.
 - **Impassable Terrain Tuning:**
     - **`src/world/world_generation.lua`**: Increased `IMPASSABLE_CHANCE` to 0.75 for "Impassable Mountain Face" generation to create more solid barriers.
 - **UI Bug Fix (Inventory Display):**

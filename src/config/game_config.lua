@@ -12,6 +12,7 @@ local GameConfig = {
         EXPLORE_RADIUS = 3,
         LANDMARK_COUNT = 20,
         OBELISK_PAIRS_COUNT = 2, -- Number of Ancient Obelisk / Hidden Spring pairs
+        SEER_CACHE_PAIRS_COUNT = 2, -- Number of Seer's Totem / Hidden Cache pairs
         LANDMARK_SCROLL_CHANCE = 0.25
     },
 
@@ -113,6 +114,92 @@ local GameConfig = {
         AETHER_LENS_EXPLORE_BONUS = 1,
         VOID_ANCHOR_HAZARD_IGNORE_CHANCE = 0.10, -- 10% chance
         LIFE_SPRING_STAMINA_BOOST = 20
+    },
+
+    -- Secret Passage Configuration
+    SECRET_PASSAGES = {
+        LEVER_ACTIVATED = { -- Defines one specific passage activated by a lever
+            TILES = { -- List of tiles forming the passage
+                {x = 50, y = 50}, {x = 50, y = 51}, {x = 50, y = 52} 
+            },
+            INITIAL_BIOME_ID = 6, -- IMPASSABLE_MOUNTAIN_FACE
+            REVEALED_BIOME_ID = 1, -- RUSTED_OASIS (Plains)
+            LEVER_COUNT = 1 -- Number of levers in the world that can activate this
+        }
+        -- Can add more passage configurations here later if needed
+    },
+
+    -- Landmark specific configurations
+    LANDMARK_CONFIG = {
+        HIDDEN_CACHE_REWARD = { -- Define what a Hidden Cache gives
+            relic_fragments = { time = 1, space = 1 } -- Example: 1 time fragment, 1 space fragment
+            -- We could add other reward types here later, e.g., items, stamina boosts
+        }
+    },
+
+    MAP_ICONS = {
+        ANCIENT_OBELISK = "O",
+        HIDDEN_SPRING = "H",
+        ANCIENT_LEVER = "L",
+        SEER_TOTEM = "S",
+        HIDDEN_CACHE = "$"
+    },
+
+    LANDMARK_SPRITES = {
+        -- Default sprite if a specific one isn't found
+        DEFAULT = {
+            { shape = "rectangle", mode = "fill", color = {128, 128, 128}, params = { 0.25, 0.25, 0.5, 0.5 } } -- Grey square
+        },
+        ["Ancient Ruins"] = {
+            { shape = "rectangle", mode = "line", color = {100, 100, 100}, params = { 0.1, 0.5, 0.3, 0.4 } }, -- Broken wall 1
+            { shape = "rectangle", mode = "line", color = {100, 100, 100}, params = { 0.6, 0.2, 0.3, 0.4 } }, -- Broken wall 2
+            { shape = "polygon", mode = "fill", color = {150,150,150}, params = {0.4,0.4, 0.6,0.4, 0.5,0.2} } -- Roof piece
+        },
+        ["Mystic Shrine"] = {
+            { shape = "circle", mode = "fill", color = {0, 150, 200}, params = { 0.5, 0.5, 0.3 } }, -- Blue orb
+            { shape = "rectangle", mode = "fill", color = {200, 200, 100}, params = { 0.4, 0.7, 0.2, 0.2 } } -- Pedestal
+        },
+        ["Crystal Formation"] = {
+            { shape = "polygon", mode = "fill", color = {180, 100, 255}, params = {0.5,0.1, 0.3,0.8, 0.4,0.8} }, -- Crystal shard 1
+            { shape = "polygon", mode = "fill", color = {200, 120, 255}, params = {0.5,0.1, 0.7,0.8, 0.6,0.8} }, -- Crystal shard 2
+        },
+        ["Abandoned Camp"] = {
+            { shape = "polygon", mode = "fill", color = {139,69,19}, params = {0.2,0.8, 0.8,0.8, 0.5,0.3} }, -- Brown tent shape
+            { shape = "rectangle", mode = "fill", color = {255,0,0}, params = {0.45,0.65, 0.1,0.1} } -- Small red for "fire"
+        },
+        ["Strange Monolith"] = {
+            { shape = "rectangle", mode = "fill", color = {50, 50, 60}, params = { 0.4, 0.1, 0.2, 0.8 } } -- Tall dark rectangle
+        },
+        ["Ancient Obelisk"] = {
+            { shape = "polygon", mode = "fill", color = {180, 180, 180}, params = {0.5,0.1, 0.3,0.9, 0.7,0.9} } -- Tall grey obelisk shape
+        },
+        ["Hidden Spring"] = {
+            { shape = "circle", mode = "fill", color = {100, 150, 255}, params = { 0.5, 0.5, 0.35 } }, -- Blue water
+            { shape = "circle", mode = "line", color = {80, 120, 200}, params = { 0.5, 0.5, 0.4 } } -- Darker outline
+        },
+        ["Ancient Lever"] = {
+            { shape = "rectangle", mode = "fill", color = {150,150,150}, params = {0.4, 0.2, 0.2, 0.6} }, -- Lever base
+            { shape = "circle", mode = "fill", color = {200,50,50}, params = {0.5, 0.25, 0.1} } -- Red handle
+        },
+        ["Seer's Totem"] = {
+            { shape = "rectangle", mode = "fill", color = {100, 80, 60}, params = {0.45, 0.2, 0.1, 0.6} }, -- Wooden pole
+            { shape = "circle", mode = "fill", color = {80, 40, 220}, params = {0.5, 0.3, 0.15} } -- Purple "eye"
+        },
+        ["Hidden Cache"] = {
+            { shape = "rectangle", mode = "fill", color = {139,69,19}, params = {0.2, 0.4, 0.6, 0.4} }, -- Brown chest body
+            { shape = "rectangle", mode = "fill", color = {210,180,140}, params = {0.25, 0.35, 0.5, 0.1} } -- Lighter lid part
+        },
+        ["Contract_Scroll"] = {
+            { shape = "rectangle", mode = "fill", color = {240, 230, 200}, params = {0.2, 0.2, 0.6, 0.6} }, -- Parchment
+            { shape = "line", color = {100,100,100}, params = {0.3,0.3, 0.7,0.3} }, -- Line 1
+            { shape = "line", color = {100,100,100}, params = {0.3,0.5, 0.7,0.5} }, -- Line 2
+            { shape = "line", color = {100,100,100}, params = {0.3,0.7, 0.7,0.7} }  -- Line 3
+        }
+        -- Note: params for rectangle are {rel_x, rel_y, rel_width, rel_height}
+        -- params for circle are {rel_cx, rel_cy, rel_radius}
+        -- params for polygon are {x1,y1, x2,y2, ...} (relative coordinates)
+        -- params for line are {x1,y1, x2,y2, ...} (can be multiple segments)
+        -- All coordinates and dimensions are relative to the tile size (0.0 to 1.0)
     }
 }
 

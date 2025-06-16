@@ -56,6 +56,9 @@ local LANDMARK_TYPES = {
     "Strange Monolith",
     "Ancient Obelisk", -- New: Reveals a Hidden Spring
     "Hidden Spring",   -- New: Revealed by an Ancient Obelisk
+    "Ancient Lever",   -- New: Activates a secret passage
+    "Seer's Totem",    -- New: Reveals a Hidden Cache
+    "Hidden Cache",    -- New: Revealed by a Seer's Totem, contains reward
     "Contract_Scroll"  -- Special landmark that gives a new contract
 }
 
@@ -445,8 +448,71 @@ function WorldGeneration.generateWorld(width, height)
                 end
             end
         end
-        if total_placement_attempts > max_total_attempts / 2 and obelisks_placed_count == 0 then
+        if total_placement_attempts > max_total_attempts / 2 and obelisks_placed_count == 0 and obelisk_pairs_to_place > 0 then
              print("Warning: Struggling to place initial obelisk pairs.") -- Avoid infinite loop if world is too small or full
+        end
+    end
+
+    -- Place Seer's Totem / Hidden Cache pairs
+    local seer_cache_pairs_to_place = GameConfig.WORLD.SEER_CACHE_PAIRS_COUNT or 0
+    local seer_caches_placed_count = 0
+    while seer_caches_placed_count < seer_cache_pairs_to_place and landmarks_placed < total_landmarks_to_place and total_placement_attempts < max_total_attempts do
+        total_placement_attempts = total_placement_attempts + 1
+        local totem_x, totem_y = findEmptySpotForLandmark(max_attempts_per_landmark)
+        if totem_x then
+            local cache_x, cache_y = findEmptySpotForLandmark(max_attempts_per_landmark)
+            if cache_x and (totem_x ~= cache_x or totem_y ~= cache_y) then
+                -- Place Seer's Totem
+                world.tiles[totem_x][totem_y].landmark = {
+                    type = "Seer's Totem",
+                    discovered = false,
+                    visited = false,
+                    reveals_landmark_at = { x = cache_x, y = cache_y }
+                }
+                landmarks_placed = landmarks_placed + 1
+
+                -- Place Hidden Cache
+                if landmarks_placed < total_landmarks_to_place then
+                    world.tiles[cache_x][cache_y].landmark = {
+                        type = "Hidden Cache",
+                        discovered = false,
+                        visited = false,
+                        is_hidden_cache = true,
+                        initially_hidden = true,
+                        looted = false -- To track if reward has been taken
+                    }
+                    landmarks_placed = landmarks_placed + 1
+                    seer_caches_placed_count = seer_caches_placed_count + 1
+                else
+                    world.tiles[totem_x][totem_y].landmark = nil
+                    landmarks_placed = landmarks_placed - 1
+                    break 
+                end
+            end
+        end
+        if total_placement_attempts > max_total_attempts * 0.6 and seer_caches_placed_count == 0 and seer_cache_pairs_to_place > 0 then
+             print("Warning: Struggling to place Seer's Totem/Cache pairs.")
+        end
+    end
+
+    -- Place Ancient Levers
+    local levers_to_place = GameConfig.SECRET_PASSAGES.LEVER_ACTIVATED.LEVER_COUNT or 0
+    local levers_placed_count = 0
+    while levers_placed_count < levers_to_place and landmarks_placed < total_landmarks_to_place and total_placement_attempts < max_total_attempts do
+        total_placement_attempts = total_placement_attempts + 1
+        local lever_x, lever_y = findEmptySpotForLandmark(max_attempts_per_landmark)
+        if lever_x then
+            world.tiles[lever_x][lever_y].landmark = {
+                type = "Ancient Lever",
+                discovered = false,
+                visited = false,
+                activated = false -- Specific to levers
+            }
+            landmarks_placed = landmarks_placed + 1
+            levers_placed_count = levers_placed_count + 1
+        end
+        if total_placement_attempts > max_total_attempts * 0.75 and levers_placed_count == 0 and levers_to_place > 0 then
+             print("Warning: Struggling to place Ancient Levers.")
         end
     end
 
@@ -454,10 +520,12 @@ function WorldGeneration.generateWorld(width, height)
     local regular_landmarks_to_place = total_landmarks_to_place - landmarks_placed
     local regular_landmarks_placed_count = 0
     
-    -- Create a list of regular landmark types (excluding Obelisk and Spring, and Contract Scroll for now)
+    -- Create a list of regular landmark types (excluding special ones)
     local regular_landmark_pool = {}
     for _, l_type in ipairs(LANDMARK_TYPES) do
-        if l_type ~= "Ancient Obelisk" and l_type ~= "Hidden Spring" and l_type ~= "Contract_Scroll" then
+        if l_type ~= "Ancient Obelisk" and l_type ~= "Hidden Spring" and 
+           l_type ~= "Ancient Lever" and l_type ~= "Contract_Scroll" and
+           l_type ~= "Seer's Totem" and l_type ~= "Hidden Cache" then
             table.insert(regular_landmark_pool, l_type)
         end
     end
@@ -492,8 +560,39 @@ function WorldGeneration.generateWorld(width, height)
             break -- Avoid excessive looping
         end
     end
+
+    -- Sixth pass: Ensure secret passage tiles are initially set correctly
+    if GameConfig.SECRET_PASSAGES and GameConfig.SECRET_PASSAGES.LEVER_ACTIVATED then
+        local passage_config = GameConfig.SECRET_PASSAGES.LEVER_ACTIVATED
+        local initial_biome_id = passage_config.INITIAL_BIOME_ID
+        local initial_biome_props = WorldGeneration.BIOMES[initial_biome_id]
+
+        if initial_biome_props then
+            for _, p_tile_coords in ipairs(passage_config.TILES) do
+                if WorldGeneration.isInBounds(world, p_tile_coords.x, p_tile_coords.y) then
+                    world.tiles[p_tile_coords.x][p_tile_coords.y].biome = {
+                        id = initial_biome_id,
+                        name = initial_biome_props.name,
+                        color = initial_biome_props.color,
+                        traversal_difficulty = initial_biome_props.traversal_difficulty,
+                        hazard = initial_biome_props.hazard,
+                        is_impassable = initial_biome_props.is_impassable 
+                    }
+                    -- Ensure no landmark is placed on these specific passage tiles
+                    if world.tiles[p_tile_coords.x][p_tile_coords.y].landmark then
+                        print("Warning: Removed landmark from a secret passage tile at " .. p_tile_coords.x .. "," .. p_tile_coords.y)
+                        world.tiles[p_tile_coords.x][p_tile_coords.y].landmark = nil
+                        -- Note: This could slightly reduce total landmarks if one was already there.
+                        -- Consider adjusting landmark counts or placement logic if this becomes an issue.
+                    end
+                end
+            end
+        else
+            print("Error: Invalid INITIAL_BIOME_ID for secret passage in game_config.")
+        end
+    end
     
-    print("World generation complete. Placed " .. landmarks_placed .. " landmarks (" .. obelisks_placed_count .. " obelisk pairs). Region, corridor, chokepoint, and impassable terrain passes complete.")
+    print("World generation complete. Placed " .. landmarks_placed .. " landmarks (" .. obelisks_placed_count .. " obelisk pairs, " .. seer_caches_placed_count .. " seer/cache pairs, " .. levers_placed_count .. " levers). All passes complete.")
     return world
 end
 

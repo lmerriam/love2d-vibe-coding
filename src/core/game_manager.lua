@@ -479,6 +479,82 @@ function GameManager.checkLandmark()
             local spring_reward = math.random(2,3)
             player.inventory.relic_fragment = (player.inventory.relic_fragment or 0) + spring_reward
             GameManager.addNotification("You found the Hidden Spring! Gained " .. spring_reward .. " relic fragments.")
+        elseif currentTile.landmark.type == "Ancient Lever" then
+            if not currentTile.landmark.activated then
+                currentTile.landmark.activated = true
+                player.inventory = player.inventory or {}
+                player.inventory.relic_fragment = (player.inventory.relic_fragment or 0) + 1 -- Standard reward for interaction
+                GameManager.addNotification("You pull the Ancient Lever... A distant rumble echoes.")
+
+                -- Activate the secret passage
+                local passage_config = GameConfig.SECRET_PASSAGES.LEVER_ACTIVATED
+                if passage_config then
+                    local revealed_biome_id = passage_config.REVEALED_BIOME_ID
+                    local revealed_biome_props = WorldGeneration.BIOMES[revealed_biome_id]
+                    if revealed_biome_props then
+                        for _, p_tile_coords in ipairs(passage_config.TILES) do
+                            if WorldGeneration.isInBounds(GameManager.GameState.world, p_tile_coords.x, p_tile_coords.y) then
+                                local passage_tile = GameManager.GameState.world.tiles[p_tile_coords.x][p_tile_coords.y]
+                                passage_tile.biome = {
+                                    id = revealed_biome_id,
+                                    name = revealed_biome_props.name,
+                                    color = revealed_biome_props.color,
+                                    traversal_difficulty = revealed_biome_props.traversal_difficulty,
+                                    hazard = revealed_biome_props.hazard,
+                                    is_impassable = revealed_biome_props.is_impassable -- Should be false for a passage
+                                }
+                                passage_tile.explored = true -- Make sure the opened passage is visible
+                            end
+                        end
+                        GameManager.addNotification("A secret passage has opened!")
+                    else
+                        print("Error: Invalid REVEALED_BIOME_ID for secret passage in game_config.")
+                    end
+                end
+            else
+                GameManager.addNotification("The Ancient Lever has already been pulled.")
+            end
+        elseif currentTile.landmark.type == "Seer's Totem" then
+            player.inventory = player.inventory or {}
+            player.inventory.relic_fragment = (player.inventory.relic_fragment or 0) + 1 -- Standard reward
+            GameManager.addNotification("Discovered a Seer's Totem! Gained 1 relic fragment.")
+
+            if currentTile.landmark.reveals_landmark_at then
+                local cache_coords = currentTile.landmark.reveals_landmark_at
+                if GameManager.GameState.world.tiles[cache_coords.x] and GameManager.GameState.world.tiles[cache_coords.x][cache_coords.y] then
+                    local cache_tile = GameManager.GameState.world.tiles[cache_coords.x][cache_coords.y]
+                    if cache_tile.landmark and cache_tile.landmark.type == "Hidden Cache" then
+                        if not cache_tile.landmark.discovered then
+                            cache_tile.landmark.discovered = true
+                            cache_tile.explored = true -- Ensure the tile itself is marked explored for minimap visibility
+                            GameManager.addNotification("The Totem whispers, revealing a Hidden Cache on your map!")
+                        end
+                    end
+                end
+            end
+        elseif currentTile.landmark.type == "Hidden Cache" then
+            if not currentTile.landmark.looted then
+                currentTile.landmark.looted = true
+                local reward_config = GameConfig.LANDMARK_CONFIG.HIDDEN_CACHE_REWARD
+                local reward_text_parts = {}
+
+                if reward_config.relic_fragments then
+                    player.inventory.relic_fragments = player.inventory.relic_fragments or {}
+                    for frag_type, amount in pairs(reward_config.relic_fragments) do
+                        player.inventory.relic_fragments[frag_type] = (player.inventory.relic_fragments[frag_type] or 0) + amount
+                        table.insert(reward_text_parts, amount .. " " .. frag_type .. " fragment(s)")
+                    end
+                end
+                -- Add other reward types here if defined in LANDMARK_CONFIG.HIDDEN_CACHE_REWARD
+
+                if #reward_text_parts > 0 then
+                    GameManager.addNotification("You found the Hidden Cache! Gained: " .. table.concat(reward_text_parts, ", ") .. ".")
+                else
+                    GameManager.addNotification("You found the Hidden Cache, but it was empty.") -- Fallback
+                end
+            else
+                GameManager.addNotification("This Hidden Cache has already been looted.")
+            end
         else
             -- Add reward for other regular landmarks
             player.inventory = player.inventory or {}

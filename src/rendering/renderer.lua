@@ -68,19 +68,40 @@ function Renderer.renderWorld()
                 love.graphics.setColor(tile.biome.color[1]/255, tile.biome.color[2]/255, tile.biome.color[3]/255)
                 love.graphics.rectangle("fill", screenX, screenY, tileSize, tileSize)
                 
-                -- Draw symbol for discovered but unvisited landmarks
+                -- Draw sprite for discovered but unvisited landmarks
                 if tile.landmark and tile.landmark.discovered and not tile.landmark.visited then
-                    love.graphics.setColor(1, 1, 1)  -- White
-                    local symbol = "?"
-                    if tile.landmark.type == "Contract_Scroll" then
-                        symbol = "S"
-                    elseif tile.landmark.type == "Ancient Obelisk" then
-                        symbol = "O"
-                    elseif tile.landmark.type == "Hidden Spring" then
-                        -- This will show if it's discovered (e.g., by an Obelisk) but not yet visited.
-                        symbol = "H" 
+                    local landmark_sprite_def = GameConfig.LANDMARK_SPRITES[tile.landmark.type] or GameConfig.LANDMARK_SPRITES.DEFAULT
+                    if landmark_sprite_def then
+                        for _, part in ipairs(landmark_sprite_def) do
+                            love.graphics.setColor(part.color[1]/255, part.color[2]/255, part.color[3]/255)
+                            if part.shape == "rectangle" then
+                                love.graphics.rectangle(part.mode, 
+                                                        screenX + part.params[1] * tileSize, 
+                                                        screenY + part.params[2] * tileSize, 
+                                                        part.params[3] * tileSize, 
+                                                        part.params[4] * tileSize)
+                            elseif part.shape == "circle" then
+                                love.graphics.circle(part.mode, 
+                                                       screenX + part.params[1] * tileSize, 
+                                                       screenY + part.params[2] * tileSize, 
+                                                       part.params[3] * tileSize)
+                            elseif part.shape == "polygon" then
+                                local poly_coords = {}
+                                for i = 1, #part.params, 2 do
+                                    table.insert(poly_coords, screenX + part.params[i] * tileSize)
+                                    table.insert(poly_coords, screenY + part.params[i+1] * tileSize)
+                                end
+                                love.graphics.polygon(part.mode, poly_coords)
+                            elseif part.shape == "line" then
+                                local line_coords = {}
+                                for i = 1, #part.params, 2 do
+                                    table.insert(line_coords, screenX + part.params[i] * tileSize)
+                                    table.insert(line_coords, screenY + part.params[i+1] * tileSize)
+                                end
+                                love.graphics.line(line_coords)
+                            end
+                        end
                     end
-                    love.graphics.print(symbol, screenX + tileSize/2 - (love.graphics.getFont():getWidth(symbol)/2), screenY + tileSize/2 - (love.graphics.getFont():getHeight()/2))
                 end
             else
                 -- Unexplored tiles are black
@@ -158,7 +179,6 @@ function Renderer.renderUI()
                 yOffset = yOffset + 20
             end
         end
-        -- Removed accidental diff marker
         
         -- Render abilities
         if gameState.player.abilities then
