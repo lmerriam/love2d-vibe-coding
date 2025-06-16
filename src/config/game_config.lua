@@ -157,7 +157,73 @@ local GameConfig = {
         STRATEGIC_NODES_COUNT = 6, -- Number of additional strategic nodes to place
         MIN_NODE_DISTANCE = 15, -- Minimum distance between nodes to ensure spread
         
-        -- Variable Width System
+        -- Organic Path Generation (New System)
+        USE_ORGANIC_PATHS = true, -- Enable organic pathfinding instead of straight lines
+        LIGHTWEIGHT_MODE = true, -- Use simplified algorithms for better performance
+        
+        -- Simplified Terrain Avoidance (lightweight alternative to flow fields)
+        TERRAIN_AVOIDANCE = {
+            ENABLED = true,
+            AVOIDANCE_STRENGTH = 1.5, -- How much paths try to avoid difficult terrain
+            SAMPLE_DISTANCE = 3, -- How far ahead to look when choosing path direction
+            TERRAIN_PREFERENCE = { -- Lower values = more preferred (inverted from penalties)
+                [1] = 1.0, -- Plains - preferred
+                [2] = 2.0, -- Jungle - avoid
+                [3] = 3.0, -- Mountains - strongly avoid
+                [4] = 1.2, -- Desert - slightly avoid
+                [5] = 2.5, -- Tundra - avoid
+                [6] = 10.0  -- Impassable - strongly avoid
+            }
+        },
+        
+        -- Simplified Bezier Curves (no flow field dependency)
+        BEZIER_CURVES = {
+            ENABLED = true,
+            SEGMENT_LENGTH = 15, -- Break paths into segments of this length
+            CONTROL_POINT_OFFSET = 0.25, -- How far control points deviate (0-1)
+            RANDOM_VARIATION = 0.3, -- Random variation in control points
+            CURVE_RESOLUTION = 1.0, -- Step size for curve generation (larger = fewer points)
+            TERRAIN_BIAS = 0.4 -- How much terrain affects control point placement (0-1)
+        },
+        
+        -- Path Network Hierarchy
+        PATH_HIERARCHY = {
+            ENABLED = true,
+            
+            -- Major Thoroughfares (Tier 1: Region to Region)
+            MAJOR_PATHS = {
+                WIDTH = 3,
+                MAINTENANCE_LEVEL = 0.9, -- How well-maintained (0-1)
+                BIOME_OVERRIDE_CHANCE = 0.8, -- Chance to override terrain
+                ABANDONMENT_CHANCE = 0.05 -- Very low abandonment rate
+            },
+            
+            -- Local Connectors (Tier 2: Landmarks to Thoroughfares)
+            LOCAL_PATHS = {
+                WIDTH = 1,
+                MAINTENANCE_LEVEL = 0.6,
+                BIOME_OVERRIDE_CHANCE = 0.4,
+                ABANDONMENT_CHANCE = 0.15,
+                BRANCH_DISTANCE = 25 -- Max distance to connect to major path
+            },
+            
+            -- Abandoned Sections (Tier 3: Broken/Overgrown)
+            ABANDONED_PATHS = {
+                GLOBAL_ABANDONMENT_RATE = 0.2, -- Percentage of paths to abandon
+                BIOME_ABANDONMENT_MODIFIERS = {
+                    [1] = 0.5, -- Plains - less abandonment
+                    [2] = 2.0, -- Jungle - high abandonment (overgrowth)
+                    [3] = 1.5, -- Mountains - moderate (rockslides)
+                    [4] = 0.8, -- Desert - low (preservation)
+                    [5] = 1.8, -- Tundra - high (harsh conditions)
+                    [6] = 0.0  -- Impassable - N/A
+                },
+                OVERGROWTH_BIOMES = {2, 5}, -- Biomes that overgrow paths
+                BROKEN_BIOMES = {3} -- Biomes where paths are broken/blocked
+            }
+        },
+        
+        -- Legacy settings (kept for compatibility)
         BASE_CORRIDOR_WIDTH = 1, -- Base width for most path segments
         NODE_IMPORTANCE_WIDTHS = { -- Width based on node type
             start = 2,           -- Player starting area - wider
@@ -175,11 +241,8 @@ local GameConfig = {
         },
         JUNCTION_EXPANSION_RADIUS = 3, -- Extra width around major junctions
         
-        -- Organic Path Generation
+        -- Path Appearance
         PATH_BIOME_ID = 7, -- MST_PATH - distinct biome for paths
-        MEANDER_FREQUENCY = 0.3, -- Chance to add gentle curves (replaces simple wobble)
-        MEANDER_STRENGTH = 2, -- How much paths can curve (in tiles)
-        CURVE_SMOOTHING = 0.7, -- How much to smooth sharp turns (0=none, 1=maximum)
         VALLEY_SEEKING_STRENGTH = 2.0, -- How much paths prefer lower elevations
         NOISE_SCALE_ELEVATION = 0.03 -- Scale for elevation noise generation
     },

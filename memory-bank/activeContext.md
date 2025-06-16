@@ -3,7 +3,8 @@
 ---
 
 ### **CURRENT WORK FOCUS**
-- **Landmark Visuals Enhancement:** Implemented a system to render simple, distinct icons for each landmark type using LÖVE2D's drawing primitives, replacing character-based map symbols.
+- **MST Path System & Distinct Path Biome:** Implemented a graph-based path generation system using Minimum Spanning Tree algorithm and created a distinct "Ancient Path" biome for better visual clarity of the generated pathways.
+- **Previous: Landmark Visuals Enhancement:** Implemented a system to render simple, distinct icons for each landmark type using LÖVE2D's drawing primitives, replacing character-based map symbols.
 - **Previous: Landmark Navigation Enhancement (Seer's Totem & Hidden Cache):** Implementing "Seer's Totem" landmarks that, when activated, reveal the location of a "Hidden Cache" which provides a reward.
 - **Previous: Landmark Navigation Enhancement (Ancient Lever & Secret Passage):** Implemented "Ancient Lever" landmarks that, when activated, open a predefined secret passage by changing impassable tiles to passable ones.
 - **Previous: Landmark Navigation Enhancement (Obelisk-Spring):** Implemented a system where "Ancient Obelisks" reveal the locations of "Hidden Springs," enhancing landmark interaction for navigation.
@@ -19,6 +20,41 @@
 ---
 
 ### **RECENT CHANGES**
+- **MST Path System & Distinct Path Biome:**
+    - **`src/config/game_config.lua`**:
+        - Added `MST_PATH = 7` to `BIOME_IDS` for distinct path tiles created by MST system.
+        - Updated `MST_PATH_SYSTEM.PATH_BIOME_ID` from `1` (RUSTED_OASIS) to `7` (MST_PATH) to use the new distinct biome.
+        - Added comprehensive `MST_PATH_SYSTEM` configuration including:
+            - `ENABLED = true` - Enable/disable MST path generation
+            - `TERRAIN_PENALTIES` - Weight penalties for different biomes when calculating MST edges
+            - `REGION_CROSSING_BONUS = 0.8` - Reduce weight when paths cross regions to encourage connectivity
+            - `INCLUDE_LANDMARKS_AS_NODES = true` - Include major landmarks as graph nodes
+            - `MAJOR_LANDMARK_TYPES` - List of landmark types that become MST nodes
+            - `ADD_STRATEGIC_NODES = true` - Add additional strategic nodes for better connectivity
+            - `STRATEGIC_NODES_COUNT = 6` - Number of additional strategic nodes
+            - `MIN_NODE_DISTANCE = 15` - Minimum distance between nodes
+            - `CORRIDOR_WIDTH = 1` - Path width (total = 2*width + 1)
+            - `WOBBLE_FREQUENCY = 0.2` - Chance to apply wobble to path segments
+            - `MAX_WOBBLE_OFFSET = 2` - Maximum perpendicular offset for wobble
+    - **`src/world/world_generation.lua`**:
+        - Added new biome definition for "Ancient Path" (ID 7) with sandy/golden brown color `{160, 140, 80}` for visibility.
+        - Implemented comprehensive MST-based path generation system:
+            - `generateMSTNodes()` - Creates nodes from player start, region centers, major landmarks, and strategic positions
+            - `calculatePathWeight()` - Calculates edge weights considering terrain penalties, region crossings, and distance
+            - `buildMinimumSpanningTree()` - Uses Prim's algorithm to create MST connecting all nodes
+            - `carveMSTCorridors()` - Carves paths with wobble effects and corridor width
+        - Updated world generation flow:
+            - First pass: Generate biomes based on regions
+            - Second pass: MST-based path generation (if enabled)
+            - Third pass: Border chokepoints (avoiding MST corridor tiles)
+            - Subsequent passes for impassable mountains and landmarks
+        - Enhanced path generation with:
+            - Terrain-aware pathfinding that considers biome traversal difficulty
+            - Region-crossing bonus to encourage inter-region connectivity
+            - Natural wobble effects for more organic-looking paths
+            - Plus-shaped brush pattern for corridor carving
+            - Strategic node placement with distance constraints
+        - Added `isCorridorTile` flag to MST path tiles to prevent interference with other generation passes.
 - **Landmark Navigation Enhancement (Obelisk-Spring):**
     - **`src/world/world_generation.lua`**:
         - Added "Ancient Obelisk" and "Hidden Spring" to `LANDMARK_TYPES`.

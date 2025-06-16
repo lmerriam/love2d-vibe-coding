@@ -216,7 +216,7 @@ function WorldGeneration.generateWorld(width, height)
         end
     end
 
-    -- Helper function for Bresenham's Line Algorithm
+    -- Helper function for Bresenham's Line Algorithm (legacy support)
     local function getLine(x1, y1, x2, y2)
         local line_tiles = {}
         local dx = math.abs(x2 - x1)
@@ -232,13 +232,205 @@ function WorldGeneration.generateWorld(width, height)
             if e2 > -dy then
                 err = err - dy
                 x1 = x1 + sx
-                end
             end
-            end -- Close the if statement for valid edge check
-        end
-    end
+            if e2 < dx then
+                err = err + dx
+                y1 = y1 + sy
+            end
         end
         return line_tiles
+    end
+
+    -- Simple terrain avoidance for lightweight pathfinding
+    local function evaluateTerrainScore(world, x, y)
+        if not WorldGeneration.isInBounds(world, x, y) then
+            return 10.0 -- High penalty for out of bounds
+        end
+        
+        local tile = world.tiles[x][y]
+        local biome_id = tile.biome.id
+        local terrain_preference = GameConfig.MST_PATH_SYSTEM.TERRAIN_AVOIDANCE.TERRAIN_PREFERENCE[biome_id] or 3.0
+        
+        return terrain_preference
+    end
+
+    -- Simplified Bezier curve generation (no flow field dependency)
+    local function generateSimpleBezierPath(start_x, start_y, end_x, end_y, world)
+        local config = GameConfig.MST_PATH_SYSTEM.BEZIER_CURVES
+        local path_points = {}
+        
+        -- Calculate path distance and number of segments
+        local total_distance = math.sqrt((end_x - start_x)^2 + (end_y - start_y)^2)
+        local num_segments = math.max(1, math.floor(total_distance / config.SEGMENT_LENGTH))
+        
+        -- Generate intermediate control points with terrain bias
+        local segment_points = {{x = start_x, y = start_y}}
+        
+        for i = 1, num_segments - 1 do
+            local t = i / num_segments
+            local base_x = start_x + t * (end_x - start_x)
+            local base_y = start_y + t * (end_y - start_y)
+            
+            -- Add random variation for natural curves
+            local offset_strength = config.CONTROL_POINT_OFFSET * total_distance / num_segments
+            local random_variation = config.RANDOM_VARIATION
+            
+            -- Random perpendicular offset for natural curves
+            local perp_dx = -(end_y - start_y) / total_distance
+            local perp_dy = (end_x - start_x) / total_distance
+            local perp_offset = (math.random() - 0.5) * offset_strength * random_variation
+            
+            -- Basic terrain bias - try to avoid difficult terrain in control point placement
+            local terrain_bias_strength = config.TERRAIN_BIAS * offset_strength
+            local terrain_dx, terrain_dy = 0, 0
+            
+            -- Sample surrounding terrain to bias control point placement
+            if config.TERRAIN_BIAS > 0 then
+                local sample_positions = {{-1,-1}, {0,-1}, {1,-1}, {-1,0}, {1,0}, {-1,1}, {0,1}, {1,1}}
+                local best_score = math.huge
+                local best_dx, best_dy = 0, 0
+                
+                for _, offset in ipairs(sample_positions) do
+                    local sample_x = math.floor(base_x) + offset[1]
+                    local sample_y = math.floor(base_y) + offset[2]
+                    local score = evaluateTerrainScore(world, sample_x, sample_y)
+                    
+                    if score < best_score then
+                        best_score = score
+                        best_dx, best_dy = offset[1], offset[2]
+                    end
+                end
+                
+                terrain_dx = best_dx * terrain_bias_strength
+                terrain_dy = best_dy * terrain_bias_strength
+            end
+            
+            local control_x = base_x + perp_dx * perp_offset + terrain_dx
+            local control_y = base_y + perp_dy * perp_offset + terrain_dy
+            
+            -- Clamp to world bounds
+            control_x = math.max(1, math.min(world.width, control_x))
+            control_y = math.max(1, math.min(world.height, control_y))
+            
+            table.insert(segment_points, {x = control_x, y = control_y})
+        end
+        
+        table.insert(segment_points, {x = end_x, y = end_y})
+        
+        -- Generate smooth curve through control points
+        for i = 1, #segment_points - 1 do
+            local p1 = segment_points[i]
+            local p2 = segment_points[i + 1]
+            
+            -- Linear interpolation between control points
+            local segment_distance = math.sqrt((p2.x - p1.x)^2 + (p2.y - p1.y)^2)
+            local steps = math.max(1, math.floor(segment_distance / config.CURVE_RESOLUTION))
+            
+            for step = 0, steps do
+                local t = step / steps
+                local x = p1.x + t * (p2.x - p1.x)
+                local y = p1.y + t * (p2.y - p1.y)
+                
+                table.insert(path_points, {
+                    x = math.floor(x + 0.5),
+                    y = math.floor(y + 0.5),
+                    t = (i - 1 + t) / (#segment_points - 1)
+                })
+            end
+        end
+        
+        return path_points
+    end
+
+    -- Lightweight path generation using simple terrain avoidance
+    local function generateLightweightPath(start_x, start_y, end_x, end_y, world)
+        local config = GameConfig.MST_PATH_SYSTEM.TERRAIN_AVOIDANCE
+        
+        if not config.ENABLED then
+            -- Fallback to Bezier curves only
+            return generateSimpleBezierPath(start_x, start_y, end_x, end_y, world)
+        end
+        
+        local path_points = {}
+        local current_x, current_y = start_x, start_y
+        table.insert(path_points, {x = current_x, y = current_y})
+        
+        local max_iterations = math.floor(math.sqrt((end_x - start_x)^2 + (end_y - start_y)^2) * 2)
+        local iteration_count = 0
+        
+        -- Simple greedy pathfinding with terrain avoidance
+        while math.sqrt((current_x - end_x)^2 + (current_y - end_y)^2) > 1.5 and iteration_count < max_iterations do
+            local best_x, best_y = current_x, current_y
+            local best_score = math.huge
+            
+            -- Check neighboring positions
+            local neighbors = {{0,1}, {0,-1}, {1,0}, {-1,0}, {1,1}, {1,-1}, {-1,1}, {-1,-1}}
+            for _, offset in ipairs(neighbors) do
+                local nx, ny = current_x + offset[1], current_y + offset[2]
+                
+                if WorldGeneration.isInBounds(world, nx, ny) then
+                    -- Score based on distance to goal
+                    local distance_to_goal = math.sqrt((nx - end_x)^2 + (ny - end_y)^2)
+                    
+                    -- Add terrain avoidance
+                    local terrain_score = evaluateTerrainScore(world, nx, ny) * config.AVOIDANCE_STRENGTH
+                    
+                    -- Look ahead for better terrain avoidance
+                    local lookahead_penalty = 0
+                    local sample_distance = config.SAMPLE_DISTANCE
+                    
+                    for ahead = 1, sample_distance do
+                        local look_x = nx + offset[1] * ahead
+                        local look_y = ny + offset[2] * ahead
+                        if WorldGeneration.isInBounds(world, look_x, look_y) then
+                            lookahead_penalty = lookahead_penalty + evaluateTerrainScore(world, look_x, look_y) * 0.2
+                        end
+                    end
+                    
+                    local total_score = distance_to_goal + terrain_score + lookahead_penalty
+                    
+                    if total_score < best_score then
+                        best_score = total_score
+                        best_x, best_y = nx, ny
+                    end
+                end
+            end
+            
+            if best_x == current_x and best_y == current_y then
+                break -- Stuck, fallback to direct line
+            end
+            
+            current_x, current_y = best_x, best_y
+            table.insert(path_points, {x = current_x, y = current_y})
+            iteration_count = iteration_count + 1
+        end
+        
+        -- Ensure we reach the destination
+        if current_x ~= end_x or current_y ~= end_y then
+            table.insert(path_points, {x = end_x, y = end_y})
+        end
+        
+        return path_points
+    end
+
+    -- Main organic path generation function (streamlined)
+    local function generateOrganicPath(start_x, start_y, end_x, end_y, world, elevation_map, path_type)
+        if not GameConfig.MST_PATH_SYSTEM.USE_ORGANIC_PATHS then
+            -- Fallback to straight line
+            return getLine(start_x, start_y, end_x, end_y)
+        end
+        
+        -- Use lightweight mode if enabled
+        if GameConfig.MST_PATH_SYSTEM.LIGHTWEIGHT_MODE then
+            if GameConfig.MST_PATH_SYSTEM.BEZIER_CURVES.ENABLED then
+                return generateSimpleBezierPath(start_x, start_y, end_x, end_y, world)
+            else
+                return generateLightweightPath(start_x, start_y, end_x, end_y, world)
+            end
+        end
+        
+        -- Legacy fallback (should not be reached in lightweight mode)
+        return getLine(start_x, start_y, end_x, end_y)
     end
 
     -- Second pass: MST-based Path Generation
@@ -479,96 +671,272 @@ function WorldGeneration.generateWorld(width, height)
     
     local function carveMSTCorridors(world, mst_edges, elevation_map)
         local PATH_BIOME_ID = GameConfig.MST_PATH_SYSTEM.PATH_BIOME_ID
-        local base_width = GameConfig.MST_PATH_SYSTEM.BASE_CORRIDOR_WIDTH
-        local meander_frequency = GameConfig.MST_PATH_SYSTEM.MEANDER_FREQUENCY
-        local meander_strength = GameConfig.MST_PATH_SYSTEM.MEANDER_STRENGTH
+        local hierarchy = GameConfig.MST_PATH_SYSTEM.PATH_HIERARCHY
+        
+        -- Classify edges by importance and determine path hierarchy
+        local classified_edges = {}
+        local major_paths = {}
+        local local_paths = {}
         
         for _, edge in ipairs(mst_edges) do
             -- Safety check: ensure edge has valid from and to nodes
             if edge.from and edge.to and edge.from.x and edge.from.y and edge.to.x and edge.to.y then
-            
-            -- Calculate dynamic width based on node importance (with safety checks)
-            local from_type = edge.from.type or "strategic"
-            local to_type = edge.to.type or "strategic"
-            local from_width = GameConfig.MST_PATH_SYSTEM.NODE_IMPORTANCE_WIDTHS[from_type] or base_width
-            local to_width = GameConfig.MST_PATH_SYSTEM.NODE_IMPORTANCE_WIDTHS[to_type] or base_width
-            
-            local base_path = getLine(edge.from.x, edge.from.y, edge.to.x, edge.to.y)
-            
-            -- Create organic meander using noise-based curves instead of random wobble
-            local meandered_path = {}
-            Perlin.seed(math.random(1, 10000)) -- Random seed for this path's meander
-            
-            for i, path_point in ipairs(base_path) do
-                local t = (i - 1) / (#base_path - 1) -- Progression along path (0 to 1)
-                local meander_x = path_point.x
-                local meander_y = path_point.y
                 
-                if math.random() < meander_frequency and i > 1 and i < #base_path then
-                    -- Use noise for smoother, more natural curves
-                    local noise_x = Perlin.normalized(i * 0.1, 0, 1, 0.5)
-                    local noise_y = Perlin.normalized(0, i * 0.1, 1, 0.5)
-                    
-                    -- Apply meander perpendicular to path direction
-                    local prev_point = base_path[i-1]
-                    local dx = path_point.x - prev_point.x
-                    local dy = path_point.y - prev_point.y
-                    local length = math.sqrt(dx*dx + dy*dy)
-                    
-                    if length > 0 then
-                        -- Perpendicular vector for natural meandering
-                        local perp_x = -dy / length
-                        local perp_y = dx / length
-                        
-                        local meander_offset = (noise_x - 0.5) * meander_strength
-                        meander_x = math.max(1, math.min(world.width, path_point.x + perp_x * meander_offset))
-                        meander_y = math.max(1, math.min(world.height, path_point.y + perp_y * meander_offset))
-                    end
+                -- Determine path type based on node types
+                local from_type = edge.from.type or "strategic"
+                local to_type = edge.to.type or "strategic"
+                local is_major = (from_type == "region_center" and to_type == "region_center") or
+                               (from_type == "start" or to_type == "start")
+                
+                local path_info = {
+                    edge = edge,
+                    is_major = is_major,
+                    from_type = from_type,
+                    to_type = to_type
+                }
+                
+                table.insert(classified_edges, path_info)
+                
+                if is_major then
+                    table.insert(major_paths, path_info)
+                else
+                    table.insert(local_paths, path_info)
+                end
+            end
+        end
+        
+        -- Carve major paths first (they get priority and better quality)
+        for _, path_info in ipairs(major_paths) do
+            local edge = path_info.edge
+            
+            -- Generate organic path using new system
+            local organic_path = generateOrganicPath(
+                edge.from.x, edge.from.y, 
+                edge.to.x, edge.to.y, 
+                world, elevation_map, "major"
+            )
+            
+            -- Determine path width based on hierarchy
+            local base_width = hierarchy.ENABLED and hierarchy.MAJOR_PATHS.WIDTH or 
+                             GameConfig.MST_PATH_SYSTEM.NODE_IMPORTANCE_WIDTHS[path_info.from_type] or 1
+            
+            -- Carve the organic path
+            for i, path_point in ipairs(organic_path) do
+                if not path_point.x or not path_point.y then
+                    goto continue_point
                 end
                 
-                table.insert(meandered_path, {x = meander_x, y = meander_y, progress = t})
-            end
-            
-            -- Carve corridor with variable width
-            for i, path_tile in ipairs(meandered_path) do
-                -- Interpolate width based on distance from important nodes
-                local current_width = math.floor(from_width + (to_width - from_width) * path_tile.progress + 0.5)
+                local progress = path_point.t or (i - 1) / (#organic_path - 1)
+                
+                -- Variable width based on node importance
+                local from_width = GameConfig.MST_PATH_SYSTEM.NODE_IMPORTANCE_WIDTHS[path_info.from_type] or base_width
+                local to_width = GameConfig.MST_PATH_SYSTEM.NODE_IMPORTANCE_WIDTHS[path_info.to_type] or base_width
+                local current_width = math.floor(from_width + (to_width - from_width) * progress + 0.5)
                 
                 -- Apply terrain-based width modifiers
-                if WorldGeneration.isInBounds(world, path_tile.x, path_tile.y) then
-                    local terrain_biome = world.tiles[path_tile.x][path_tile.y].biome.id
+                if WorldGeneration.isInBounds(world, path_point.x, path_point.y) then
+                    local terrain_biome = world.tiles[path_point.x][path_point.y].biome.id
                     local terrain_modifier = GameConfig.MST_PATH_SYSTEM.TERRAIN_WIDTH_MODIFIERS[terrain_biome] or 1.0
-                    current_width = math.max(0, math.floor(current_width * terrain_modifier + 0.5))
+                    current_width = math.max(1, math.floor(current_width * terrain_modifier + 0.5))
                 end
                 
-                -- Check if we're near a junction (close to nodes) and expand width
-                local near_junction = false
+                -- Junction expansion
                 local junction_distance = GameConfig.MST_PATH_SYSTEM.JUNCTION_EXPANSION_RADIUS
                 for _, node in ipairs({edge.from, edge.to}) do
-                    local dist_to_node = math.sqrt((path_tile.x - node.x)^2 + (path_tile.y - node.y)^2)
+                    local dist_to_node = math.sqrt((path_point.x - node.x)^2 + (path_point.y - node.y)^2)
                     if dist_to_node <= junction_distance then
                         current_width = current_width + 1
-                        near_junction = true
                         break
                     end
                 end
                 
-                -- Carve the corridor with calculated width
+                -- Carve with organic brush shape
+                local brush_shape = "circular" -- Could be configurable
                 for dx = -current_width, current_width do
                     for dy = -current_width, current_width do
-                        -- Use circular brush for more natural paths (instead of + shape)
+                        local carve = false
+                        
+                        if brush_shape == "circular" then
+                            local distance = math.sqrt(dx*dx + dy*dy)
+                            carve = distance <= current_width
+                        elseif brush_shape == "diamond" then
+                            carve = (math.abs(dx) + math.abs(dy)) <= current_width
+                        else -- square
+                            carve = math.abs(dx) <= current_width and math.abs(dy) <= current_width
+                        end
+                        
+                        if carve then
+                            local carve_x, carve_y = path_point.x + dx, path_point.y + dy
+                            if WorldGeneration.isInBounds(world, carve_x, carve_y) then
+                                -- Apply biome override chance for major paths
+                                local override_chance = hierarchy.ENABLED and hierarchy.MAJOR_PATHS.BIOME_OVERRIDE_CHANCE or 0.8
+                                if math.random() < override_chance then
+                                    world.tiles[carve_x][carve_y].biome = {
+                                        id = PATH_BIOME_ID,
+                                        name = WorldGeneration.BIOMES[PATH_BIOME_ID].name,
+                                        color = WorldGeneration.BIOMES[PATH_BIOME_ID].color,
+                                        traversal_difficulty = WorldGeneration.BIOMES[PATH_BIOME_ID].traversal_difficulty,
+                                        hazard = WorldGeneration.BIOMES[PATH_BIOME_ID].hazard
+                                    }
+                                    world.tiles[carve_x][carve_y].isCorridorTile = true
+                                    world.tiles[carve_x][carve_y].path_type = "major"
+                                    world.tiles[carve_x][carve_y].maintenance_level = hierarchy.ENABLED and hierarchy.MAJOR_PATHS.MAINTENANCE_LEVEL or 0.9
+                                end
+                            end
+                        end
+                    end
+                end
+                
+                ::continue_point::
+            end
+        end
+        
+        -- Carve local paths second (they adapt around major paths)
+        for _, path_info in ipairs(local_paths) do
+            local edge = path_info.edge
+            
+            -- Generate organic path using new system
+            local organic_path = generateOrganicPath(
+                edge.from.x, edge.from.y, 
+                edge.to.x, edge.to.y, 
+                world, elevation_map, "local"
+            )
+            
+            -- Determine path width based on hierarchy
+            local base_width = hierarchy.ENABLED and hierarchy.LOCAL_PATHS.WIDTH or 1
+            
+            -- Carve the organic path
+            for i, path_point in ipairs(organic_path) do
+                if not path_point.x or not path_point.y then
+                    goto continue_local_point
+                end
+                
+                local progress = path_point.t or (i - 1) / (#organic_path - 1)
+                local current_width = base_width
+                
+                -- Apply terrain-based width modifiers
+                if WorldGeneration.isInBounds(world, path_point.x, path_point.y) then
+                    local terrain_biome = world.tiles[path_point.x][path_point.y].biome.id
+                    local terrain_modifier = GameConfig.MST_PATH_SYSTEM.TERRAIN_WIDTH_MODIFIERS[terrain_biome] or 1.0
+                    current_width = math.max(0, math.floor(current_width * terrain_modifier + 0.5))
+                end
+                
+                -- Don't override major paths
+                if world.tiles[path_point.x] and world.tiles[path_point.x][path_point.y] and 
+                   world.tiles[path_point.x][path_point.y].path_type == "major" then
+                    goto continue_local_point
+                end
+                
+                -- Carve with smaller brush for local paths
+                for dx = -current_width, current_width do
+                    for dy = -current_width, current_width do
                         local distance = math.sqrt(dx*dx + dy*dy)
                         if distance <= current_width then
-                            local carve_x, carve_y = path_tile.x + dx, path_tile.y + dy
+                            local carve_x, carve_y = path_point.x + dx, path_point.y + dy
                             if WorldGeneration.isInBounds(world, carve_x, carve_y) then
-                                world.tiles[carve_x][carve_y].biome = {
-                                    id = PATH_BIOME_ID,
-                                    name = WorldGeneration.BIOMES[PATH_BIOME_ID].name,
-                                    color = WorldGeneration.BIOMES[PATH_BIOME_ID].color,
-                                    traversal_difficulty = WorldGeneration.BIOMES[PATH_BIOME_ID].traversal_difficulty,
-                                    hazard = WorldGeneration.BIOMES[PATH_BIOME_ID].hazard
-                                }
-                                world.tiles[carve_x][carve_y].isCorridorTile = true
+                                -- Check if this tile is already a major path
+                                if world.tiles[carve_x][carve_y].path_type ~= "major" then
+                                    -- Apply biome override chance for local paths
+                                    local override_chance = hierarchy.ENABLED and hierarchy.LOCAL_PATHS.BIOME_OVERRIDE_CHANCE or 0.4
+                                    if math.random() < override_chance then
+                                        world.tiles[carve_x][carve_y].biome = {
+                                            id = PATH_BIOME_ID,
+                                            name = WorldGeneration.BIOMES[PATH_BIOME_ID].name,
+                                            color = WorldGeneration.BIOMES[PATH_BIOME_ID].color,
+                                            traversal_difficulty = WorldGeneration.BIOMES[PATH_BIOME_ID].traversal_difficulty,
+                                            hazard = WorldGeneration.BIOMES[PATH_BIOME_ID].hazard
+                                        }
+                                        world.tiles[carve_x][carve_y].isCorridorTile = true
+                                        world.tiles[carve_x][carve_y].path_type = "local"
+                                        world.tiles[carve_x][carve_y].maintenance_level = hierarchy.ENABLED and hierarchy.LOCAL_PATHS.MAINTENANCE_LEVEL or 0.6
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+                
+                ::continue_local_point::
+            end
+        end
+        
+        -- Apply path abandonment if hierarchy is enabled
+        if hierarchy.ENABLED and hierarchy.ABANDONED_PATHS.GLOBAL_ABANDONMENT_RATE > 0 then
+            for x = 1, world.width do
+                for y = 1, world.height do
+                    local tile = world.tiles[x][y]
+                    if tile.isCorridorTile and tile.path_type then
+                        local abandonment_chance = 0
+                        
+                        if tile.path_type == "major" then
+                            abandonment_chance = hierarchy.MAJOR_PATHS.ABANDONMENT_CHANCE
+                        elseif tile.path_type == "local" then
+                            abandonment_chance = hierarchy.LOCAL_PATHS.ABANDONMENT_CHANCE
+                        end
+                        
+                        -- Apply biome-specific abandonment modifiers
+                        local biome_modifier = hierarchy.ABANDONED_PATHS.BIOME_ABANDONMENT_MODIFIERS[tile.biome.id] or 1.0
+                        abandonment_chance = abandonment_chance * biome_modifier
+                        
+                        if math.random() < abandonment_chance then
+                            -- Abandon this path segment
+                            tile.is_abandoned = true
+                            tile.maintenance_level = 0.1
+                            
+                            -- Determine abandonment type based on biome
+                            local abandon_type = "broken"
+                            for _, overgrowth_biome in ipairs(hierarchy.ABANDONED_PATHS.OVERGROWTH_BIOMES) do
+                                if tile.biome.id == overgrowth_biome then
+                                    abandon_type = "overgrown"
+                                    break
+                                end
+                            end
+                            
+                            for _, broken_biome in ipairs(hierarchy.ABANDONED_PATHS.BROKEN_BIOMES) do
+                                if tile.biome.id == broken_biome then
+                                    abandon_type = "blocked"
+                                    break
+                                end
+                            end
+                            
+                            tile.abandonment_type = abandon_type
+                            
+                            -- Restore original biome for overgrown/blocked paths
+                            if abandon_type ~= "broken" then
+                                -- Restore to a more natural biome based on surroundings
+                                local neighbors = {{0,1}, {0,-1}, {1,0}, {-1,0}}
+                                local biome_counts = {}
+                                
+                                for _, offset in ipairs(neighbors) do
+                                    local nx, ny = x + offset[1], y + offset[2]
+                                    if WorldGeneration.isInBounds(world, nx, ny) then
+                                        local neighbor_tile = world.tiles[nx][ny]
+                                        if not neighbor_tile.isCorridorTile then
+                                            local neighbor_biome = neighbor_tile.biome.id
+                                            biome_counts[neighbor_biome] = (biome_counts[neighbor_biome] or 0) + 1
+                                        end
+                                    end
+                                end
+                                
+                                -- Find most common neighboring biome
+                                local most_common_biome = PATH_BIOME_ID
+                                local max_count = 0
+                                for biome_id, count in pairs(biome_counts) do
+                                    if count > max_count then
+                                        max_count = count
+                                        most_common_biome = biome_id
+                                    end
+                                end
+                                
+                                if most_common_biome ~= PATH_BIOME_ID then
+                                    tile.biome = {
+                                        id = most_common_biome,
+                                        name = WorldGeneration.BIOMES[most_common_biome].name,
+                                        color = WorldGeneration.BIOMES[most_common_biome].color,
+                                        traversal_difficulty = WorldGeneration.BIOMES[most_common_biome].traversal_difficulty,
+                                        hazard = WorldGeneration.BIOMES[most_common_biome].hazard
+                                    }
+                                end
                             end
                         end
                     end

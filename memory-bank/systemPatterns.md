@@ -155,10 +155,16 @@ The codebase now follows a modular architecture with clear separation of concern
    - Comprehensive documentation for AI maintainability
 
 2. **Procedural Generation**
+   - **Multi-layered generation system:**
+     - Region-based biome palettes using Perlin noise
+     - **MST Path Generation:** Graph-based path system using Minimum Spanning Tree algorithm
+     - Terrain-aware pathfinding with biome penalties and region-crossing bonuses
+     - Strategic node placement and natural path wobble effects
    - Enhanced Perlin noise implementation for biome distribution
    - Random landmark placement with walkability checks
-   - Tile-based world representation (100x100 grid)
+   - Tile-based world representation (200x200 grid, expanded for larger worlds)
    - Configurable generation parameters
+   - **Distinct biome system:** Dedicated "Ancient Path" biome for MST-generated pathways
 
 3. **Game State Management**
    - Centralized `GameState` table within GameManager, which includes `meta.relics` (for status) and `meta.relic_fragments` (for collected counts).

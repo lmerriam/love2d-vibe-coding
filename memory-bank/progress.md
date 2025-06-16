@@ -17,7 +17,13 @@
   - Rendering logic separated from game logic
 
 - **Technical Systems**
-  - Procedural world generation using Perlin noise
+  - **Advanced Procedural World Generation:**
+    - Multi-layered generation system using Perlin noise
+    - Region-based biome palettes and difficulty tiers
+    - **MST Path System:** Graph-based path generation using Minimum Spanning Tree algorithm connecting player start, region centers, major landmarks, and strategic nodes
+    - Terrain-aware pathfinding with biome penalties and region-crossing bonuses
+    - Natural path wobble effects and corridor width control
+    - Border chokepoints and strategic corridor integration
   - Contract generation and completion tracking
   - Ability system with passive and active abilities
   - Notification system for player feedback
