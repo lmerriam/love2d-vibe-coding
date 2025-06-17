@@ -1,9 +1,13 @@
 -- src/core/game_manager.lua
--- Manages the core game state and initialization
+-- Central game state management and coordination
+-- Refactored to use modular subsystems for better AI comprehension
 
 local WorldGeneration = require("src.world.world_generation")
 local ContractSystem = require("src.systems.contract_system")
 local AbilitySystem = require("src.systems.ability_system")
+local MovementSystem = require("src.core.movement_system")
+local LandmarkSystem = require("src.core.landmark_system")
+local DataValidation = require("src.core.data_validation")
 local serpent = require("lib.serpent")
 local GameConfig = require("src.config.game_config")
 
@@ -317,59 +321,40 @@ function GameManager.updateContracts(dt)
     end
 end
 
--- Handle movement and exploration
+-- Handle movement and exploration (refactored to use modular systems)
 function GameManager.movePlayer(dx, dy)
     local player = GameManager.GameState.player
     local world = GameManager.GameState.world
-    
-    -- Bounds check
     local newX = player.x + dx
     local newY = player.y + dy
     
-    if newX >= 1 and newX <= world.width and newY >= 1 and newY <= world.height then
-        -- Check for impassable terrain BEFORE moving
-        local target_tile_biome_id = world.tiles[newX][newY].biome.id
-        local target_biome_props = WorldGeneration.BIOMES[target_tile_biome_id]
-
-        if target_biome_props and target_biome_props.is_impassable then
-            -- Check for climbing picks if it's an impassable mountain face
-            if target_tile_biome_id == GameConfig.BIOME_IDS.IMPASSABLE_MOUNTAIN_FACE then
-                if player.inventory and player.inventory.has_climbing_picks then
-                    -- Allow movement
-                else
-                    GameManager.addNotification("Cannot climb this steep mountain face without climbing picks.")
-                    return -- Stop movement
-                end
-            -- Add other impassable checks here later (e.g., for Deep Water and Raft)
-            else
-                -- Generic impassable message if not specifically handled above
-                GameManager.addNotification("Cannot pass here.")
-                return -- Stop movement
-            end
+    -- Validate movement using MovementSystem
+    local isValid, errorMessage = MovementSystem.validateMove(world, player, newX, newY)
+    if not isValid then
+        if errorMessage then
+            GameManager.addNotification(errorMessage)
         end
+        return -- Stop movement
+    end
 
-        player.x = newX
-        player.y = newY
+    -- Update player position
+    MovementSystem.updatePosition(player, newX, newY)
+    
+    -- Explore tiles around player
+    MovementSystem.exploreAroundPlayer(world, player, GameManager.isRelicReconstructed)
+    
+    -- Apply movement-based ability effects
+    MovementSystem.applyMovementEffects(player, world)
+    
+    -- Check for hazards
+    MovementSystem.checkHazard(world, player, player.x, player.y, GameManager.addNotification)
+    
+    -- Check if player is on a landmark
+    GameManager.checkLandmark()
 
-        -- NOTE: Default movement stamina cost has been removed.
-        -- Chrono Prism's effect has been repurposed to reduce hazard stamina loss in checkHazard().
-        
-        -- Explore tiles around player
-        GameManager.exploreAroundPlayer()
-        
-        -- Apply movement-based ability effects
-        AbilitySystem.applyMovementEffects(player, world)
-        
-        -- Check for hazards (stamina already deducted for move, this is for tile-specific hazards)
-        GameManager.checkHazard(player.x, player.y)
-        
-        -- Check if player is on a landmark
-        GameManager.checkLandmark()
-
-        -- Check for player death after all stamina deductions
-        if player.stamina <= 0 then
-            GameManager.onPlayerDeath()
-        end
+    -- Check for player death after all stamina deductions
+    if MovementSystem.checkPlayerDeath(player) then
+        GameManager.onPlayerDeath()
     end
 end
 
@@ -446,129 +431,21 @@ function GameManager.checkHazard(x, y)
     -- Player death check is now handled in movePlayer after all stamina changes for the turn.
 end
 
--- Check if player is on a landmark
+-- Check if player is on a landmark (refactored to use LandmarkSystem)
 function GameManager.checkLandmark()
     local player = GameManager.GameState.player
     local currentTile = GameManager.GameState.world.tiles[player.x][player.y]
     
     if currentTile.landmark and currentTile.landmark.discovered and not currentTile.landmark.visited then
-        currentTile.landmark.visited = true
-        
-        -- Handle different landmark types
-        if currentTile.landmark.type == "Contract_Scroll" then
-            -- Generate new contract from scroll
-            local newContract = ContractSystem.generateContract()
-            table.insert(GameManager.GameState.contracts.active, newContract)
-            GameManager.addNotification("New contract acquired from scroll!")
-        elseif currentTile.landmark.type == "Ancient Obelisk" then
-            player.inventory = player.inventory or {}
-            player.inventory.relic_fragment = (player.inventory.relic_fragment or 0) + 1 -- Standard reward
-            GameManager.addNotification("Discovered an Ancient Obelisk! Gained 1 relic fragment.")
-
-            if currentTile.landmark.reveals_landmark_at then
-                local spring_coords = currentTile.landmark.reveals_landmark_at
-                if GameManager.GameState.world.tiles[spring_coords.x] and GameManager.GameState.world.tiles[spring_coords.x][spring_coords.y] then
-                    local spring_tile = GameManager.GameState.world.tiles[spring_coords.x][spring_coords.y]
-                    if spring_tile.landmark and spring_tile.landmark.type == "Hidden Spring" then
-                        if not spring_tile.landmark.discovered then
-                            spring_tile.landmark.discovered = true
-                            spring_tile.explored = true -- Ensure the tile itself is marked explored for minimap visibility
-                            -- We might want a different flag like 'pinpointed' or 'revealed_on_map'
-                            -- For now, 'discovered' means it will show up on the map.
-                            GameManager.addNotification("The Obelisk hums, revealing the location of a Hidden Spring on your map!")
-                        end
-                    end
-                end
-            end
-        elseif currentTile.landmark.type == "Hidden Spring" then
-            -- Player has reached the Hidden Spring
-            player.inventory = player.inventory or {}
-            -- Give a slightly better reward for finding a hidden spring
-            local spring_reward = math.random(2,3)
-            player.inventory.relic_fragment = (player.inventory.relic_fragment or 0) + spring_reward
-            GameManager.addNotification("You found the Hidden Spring! Gained " .. spring_reward .. " relic fragments.")
-        elseif currentTile.landmark.type == "Ancient Lever" then
-            if not currentTile.landmark.activated then
-                currentTile.landmark.activated = true
-                player.inventory = player.inventory or {}
-                player.inventory.relic_fragment = (player.inventory.relic_fragment or 0) + 1 -- Standard reward for interaction
-                GameManager.addNotification("You pull the Ancient Lever... A distant rumble echoes.")
-
-                -- Activate the secret passage
-                local passage_config = GameConfig.SECRET_PASSAGES.LEVER_ACTIVATED
-                if passage_config then
-                    local revealed_biome_id = passage_config.REVEALED_BIOME_ID
-                    local revealed_biome_props = WorldGeneration.BIOMES[revealed_biome_id]
-                    if revealed_biome_props then
-                        for _, p_tile_coords in ipairs(passage_config.TILES) do
-                            if WorldGeneration.isInBounds(GameManager.GameState.world, p_tile_coords.x, p_tile_coords.y) then
-                                local passage_tile = GameManager.GameState.world.tiles[p_tile_coords.x][p_tile_coords.y]
-                                passage_tile.biome = {
-                                    id = revealed_biome_id,
-                                    name = revealed_biome_props.name,
-                                    color = revealed_biome_props.color,
-                                    traversal_difficulty = revealed_biome_props.traversal_difficulty,
-                                    hazard = revealed_biome_props.hazard,
-                                    is_impassable = revealed_biome_props.is_impassable -- Should be false for a passage
-                                }
-                                passage_tile.explored = true -- Make sure the opened passage is visible
-                            end
-                        end
-                        GameManager.addNotification("A secret passage has opened!")
-                    else
-                        print("Error: Invalid REVEALED_BIOME_ID for secret passage in game_config.")
-                    end
-                end
-            else
-                GameManager.addNotification("The Ancient Lever has already been pulled.")
-            end
-        elseif currentTile.landmark.type == "Seer's Totem" then
-            player.inventory = player.inventory or {}
-            player.inventory.relic_fragment = (player.inventory.relic_fragment or 0) + 1 -- Standard reward
-            GameManager.addNotification("Discovered a Seer's Totem! Gained 1 relic fragment.")
-
-            if currentTile.landmark.reveals_landmark_at then
-                local cache_coords = currentTile.landmark.reveals_landmark_at
-                if GameManager.GameState.world.tiles[cache_coords.x] and GameManager.GameState.world.tiles[cache_coords.x][cache_coords.y] then
-                    local cache_tile = GameManager.GameState.world.tiles[cache_coords.x][cache_coords.y]
-                    if cache_tile.landmark and cache_tile.landmark.type == "Hidden Cache" then
-                        if not cache_tile.landmark.discovered then
-                            cache_tile.landmark.discovered = true
-                            cache_tile.explored = true -- Ensure the tile itself is marked explored for minimap visibility
-                            GameManager.addNotification("The Totem whispers, revealing a Hidden Cache on your map!")
-                        end
-                    end
-                end
-            end
-        elseif currentTile.landmark.type == "Hidden Cache" then
-            if not currentTile.landmark.looted then
-                currentTile.landmark.looted = true
-                local reward_config = GameConfig.LANDMARK_CONFIG.HIDDEN_CACHE_REWARD
-                local reward_text_parts = {}
-
-                if reward_config.relic_fragments then
-                    player.inventory.relic_fragments = player.inventory.relic_fragments or {}
-                    for frag_type, amount in pairs(reward_config.relic_fragments) do
-                        player.inventory.relic_fragments[frag_type] = (player.inventory.relic_fragments[frag_type] or 0) + amount
-                        table.insert(reward_text_parts, amount .. " " .. frag_type .. " fragment(s)")
-                    end
-                end
-                -- Add other reward types here if defined in LANDMARK_CONFIG.HIDDEN_CACHE_REWARD
-
-                if #reward_text_parts > 0 then
-                    GameManager.addNotification("You found the Hidden Cache! Gained: " .. table.concat(reward_text_parts, ", ") .. ".")
-                else
-                    GameManager.addNotification("You found the Hidden Cache, but it was empty.") -- Fallback
-                end
-            else
-                GameManager.addNotification("This Hidden Cache has already been looted.")
-            end
-        else
-            -- Add reward for other regular landmarks
-            player.inventory = player.inventory or {}
-            player.inventory.relic_fragment = (player.inventory.relic_fragment or 0) + 1
-            GameManager.addNotification("Discovered " .. currentTile.landmark.type .. "! Gained 1 relic fragment.")
-        end
+        -- Use LandmarkSystem to handle landmark interaction
+        LandmarkSystem.processLandmarkInteraction(
+            currentTile.landmark,
+            currentTile,
+            player,
+            GameManager.GameState.world,
+            GameManager.GameState.contracts,
+            GameManager.addNotification
+        )
     end
 end
 
