@@ -146,7 +146,7 @@ For AI-assisted development, the codebase has been structured to be easily compr
 4. **Consistent Patterns**: Same patterns used throughout the codebase
 5. **Memory Bank**: Detailed tracking of project state, decisions, and progress
 6. **Advanced System Documentation**: Detailed technical specifications for MST paths, landmark interactions, and relic effects
-7. **Visual System**: Landmark sprites defined through data structures rather than hardcoded graphics
+7. **Visual System**: Landmark sprites now defined through sprite sheets and quads, replacing primitive-based drawing for key landmarks.
 
 ## Current Development Focus
 

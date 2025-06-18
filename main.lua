@@ -12,6 +12,7 @@ local Renderer = require("src.rendering.renderer")
 function love.load()
     -- Initialize game state and systems
     GameManager.initialize()
+    Renderer.initialize() -- Initialize the Renderer to load assets
     print("Shattered Expanse initialized successfully")
 end
 

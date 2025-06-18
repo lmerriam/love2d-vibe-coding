@@ -54,7 +54,7 @@ graph TD
     end
     
     subgraph Rendering_Systems
-        R_sprites[Data-Driven Landmark Sprites]
+        R_sprites[Data-Driven Landmark Sprites (Sprite Sheet)]
         R_ui[Multi-Panel UI System]
         R_views[Dual View Modes]
         R_notifications[Notification System]
@@ -132,7 +132,7 @@ The codebase now follows a modular architecture with clear separation of concern
    - **Performance-optimized** contract checking and world updates
 
 6. **Data-Driven Visual System**
-   - **Sprite-based landmark rendering** using LÖVE2D primitives
+   - **Sprite-based landmark rendering** using sprite sheets and quads
    - **Multi-panel UI architecture** with contextual information
    - **Dual view mode system** (zoomed + minimap)
    - **Real-time notification system** with timing and fade effects

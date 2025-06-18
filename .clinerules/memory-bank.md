@@ -95,6 +95,7 @@ Memory Bank updates occur when:
 2. After implementing significant changes
 3. When user requests with **update memory bank** (MUST review ALL files)
 4. When context needs clarification
+5. At the end of a task once I have verified with the user that it is complete
 
 flowchart TD
     Start[Update Process]
@@ -110,7 +111,7 @@ flowchart TD
 
     Start --> Process
 
-When reviewing the codebase it is strongly recommended to use Repomix to create a packed version of the codebase and review that file.
+Before reviewing the memory bank or the codebase, I will use repomix to generate a packed version of the repository and then review the contents of that file. I do not need to re-pack before every individual file I want to read, the entire memory bank is contained inside the packed repository file.
 
 Note: When triggered by **update memory bank**, I MUST review every memory bank file, even if some don't require updates. Focus particularly on activeContext.md and progress.md as they track current state.
 

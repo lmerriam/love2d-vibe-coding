@@ -21,7 +21,7 @@
   - **MST Path Generation**: Graph-based pathfinding with terrain awareness and organic appearance
   - **Region-Based World Design**: Thematic biome distribution with difficulty progression
   - **Interactive Landmark Network**: Complex landmark relationships (Obelisk-Spring, Lever-Passage, Totem-Cache)
-  - **Visual Sprite System**: Data-driven landmark rendering using LÖVE2D primitives
+  - **Visual Sprite System**: Landmark rendering updated to use sprite sheets and quads for improved visual fidelity and performance.
   - **Environmental Interaction**: Impassable terrain with tool requirements
   - **Stamina-Based Hazard System**: Balanced challenge without punitive movement costs
   - **Passive Relic Effects**: Four distinct relics with meaningful gameplay impacts:

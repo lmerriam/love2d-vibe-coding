@@ -10,7 +10,7 @@
 ### **COMPLETED SYSTEMS (Fully Implemented)**
 - **✅ Advanced World Generation System:** Complete MST path system with terrain-aware pathfinding, region-based biome palettes, strategic corridors, and environmental barriers
 - **✅ Comprehensive Landmark System:** All landmark types implemented with full interaction mechanics (Obelisk-Spring, Ancient Lever, Seer's Totem, Hidden Cache)
-- **✅ Visual Enhancement System:** Landmark sprites rendered using LÖVE2D drawing primitives with detailed artistic definitions
+- **✅ Visual Enhancement System:** Landmark sprites now rendered using a dedicated sprite sheet and quads, replacing primitive-based drawing for key landmarks.
 - **✅ Relic Reconstruction System:** Complete fragment collection, reconstruction mechanics, and passive effect implementation
 - **✅ Environmental Interaction System:** Impassable terrain with tool requirements (climbing picks for mountain faces)
 - **✅ Enhanced Contract System:** Contract scroll discovery and relic fragment reward integration
